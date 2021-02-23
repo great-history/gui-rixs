@@ -7,10 +7,22 @@ from DataManager import *
 import re
 import numpy as np
 
+
+def ed_1v1c_py(shell_name, *, shell_level=None, v_soc=None, c_soc=0,
+               v_noccu=1, slater=None, ext_B=None, on_which='spin',
+               v_cfmat=None, v_othermat=None, loc_axis=None, verbose=0):
+    OwnFrame.informMsg("尚未导入edrixs")
+    return ""
+
 class FirstFrame(OwnFrame):
-    def __init__(self, parent, width=None, height=None):
+    def __init__(self, parent=None, width=None, height=None):
         OwnFrame.__init__(self, parent, width, height)
         self.frame = super().getFrame()
+        self.frame.setFrameStyle(QFrame.Panel | QFrame.Sunken)
+        # self.frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+        self.frame.setMinimumHeight(height-20)
+        self.frame.setMinimumWidth(width-36)
+
         self.dataManager = DataManager_atom()
 
         self._arrangeUI()
@@ -23,11 +35,6 @@ class FirstFrame(OwnFrame):
         return self.scrollForFirstFrame
 
     def _arrangeUI(self):
-        self.frame.setFrameStyle(QFrame.Panel | QFrame.Sunken)
-        # self.frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
-        self.frame.setMinimumHeight(self.frame.parent().height()-20)
-        self.frame.setMinimumWidth(self.frame.parent().width()-36)
-
         boxBasicPara = QGroupBox(self.frame)
         needToSaveStyleSheet = 'color:rgb(160,60,60)'
         self.v_name_label = QLabel(boxBasicPara)
@@ -958,9 +965,11 @@ class FirstFrame(OwnFrame):
                         return ""
             local_axis = np.array(local_axis)
 
-            return ed_1v1c_py(shell_name, *, shell_level=None, v_soc=None, c_soc=0,
-                           v_noccu=1, slater=None, ext_B=None, on_which='spin',
-                           v_cfmat=None, v_othermat=None, loc_axis=None, verbose=0)
+            verbose = super()._getDataFromInupt("verbose")
+
+            return ed_1v1c_py(shell_name=shell_name, shell_level=shell_level, v_soc=v_soc, c_soc=c_soc,
+                           v_noccu=v_noccu, slater=slater, ext_B=ext_B, on_which=on_which,
+                           v_cfmat=v_cmft, v_othermat=v_othermat, loc_axis=local_axis, verbose=verbose)
 
         if self.ed_combo.currentText() == "ed_1v1c_fort":
             return self.informMsg("not implemented yet")

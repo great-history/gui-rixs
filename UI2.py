@@ -7,9 +7,9 @@ import sys
 
 class OwnApplication:
     def __init__(self):
-        self.dataManager = DataManager_spectra()
+        self.dataManager = {}
         self.widgetsWithData = {}  # 以一个名字(str)为key，value为(控件,解析方式)，可以从控件中获取输入
-        self.app = QApplication(sys.argv)
+
         self.mainWindow = QWidget()  # main window
         self.frames = []  # 存放各个页面
         self.curFrameIndex = 0  # 当前页面索引
@@ -107,10 +107,8 @@ class OwnApplication:
         msgBox.setText(msg)
         msgBox.exec_()  # 模态
 
-    def run(self):
-        # start
-        self.app.exec()
-
 
 if __name__ == '__main__':
-    OwnApplication().run()
+    app = QApplication(sys.argv)
+    myapp = OwnApplication()
+    app.exec_()
