@@ -88,7 +88,7 @@ class SpectraBasicData:
         self.trans_op = trans_op if trans_op is not None else [[]]  # list of list
         self.gs_list = gs_list if gs_list is not None else []  # list
         self.temperature = temperature if temperature is not None else "" # float
-        self.spectra = spectra if spectra is not None else "[]"
+        self.spectra = spectra if spectra is not None else "{}"
 
 class DataManager_spectra:
     def __init__(self):
@@ -101,11 +101,11 @@ class DataManager_spectra:
             return ""
         return spectraData.name
 
-    def addSpectraData(self, spectraName: SpectraBasicData) -> bool:
-        dictKey = DataManager_spectra.getNameFromSpectraData(spectraName)
+    def addSpectraData(self, spectraData: SpectraBasicData) -> bool:
+        dictKey = DataManager_spectra.getNameFromSpectraData(spectraData)
         if len(dictKey) == 0:
             return False
-        self.spectraBasicDataList[dictKey] = spectraName  # 已经存在的话直接覆盖
+        self.spectraBasicDataList[dictKey] = spectraData  # 已经存在的话直接覆盖
         return True
 
     def getSpectraDataByName(self, name: str) -> SpectraBasicData or None:

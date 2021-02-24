@@ -5,6 +5,7 @@
 from PyQt5.QtWidgets import *
 from PyQt5 import QtCore
 from PyQt5 import QtGui
+import numpy as np
 
 
 class OwnFrame:
@@ -52,6 +53,10 @@ class OwnFrame:
             r"^(?!;)(((\-?(?!0)\d*\.?\d*)|(\-?(0\.)\d*)|0);(?!;))*((\-?(?!0)\d*\.?\d*)|(\-?(0\.)\d*)|0)")
         cls.floatListRegxValidator = QtGui.QRegExpValidator(floatListRegx)
 
+        floatlistRegx = QtCore.QRegExp(
+            r"^(?!:)(((\-?(?!0)\d*\.?\d*)|(\-?(0\.)\d*)|0):(?!;))*((\-?(?!0)\d*\.?\d*)|(\-?(0\.)\d*)|0)")
+        cls.floatlistRegxValidator = QtGui.QRegExpValidator(floatlistRegx)  # floatlist与floatList不同,一个是用:分隔,一个是用;分隔
+
         # 两个浮点数，float-float
         twoFloatRegx = QtCore.QRegExp(
             r"^(?!;)(((\-?(?!0)\d*\.?\d*)|(\-?(0\.)\d*)|0);(?!;))?((\-?(?!0)\d*\.?\d*)|(\-?(0\.)\d*)|0)")
@@ -76,6 +81,8 @@ class OwnFrame:
 
     @classmethod
     def _toFloatFromText(cls, text: str or QLineEdit) -> float or None:
+        if text == None:
+            cls.informMsg("未获取数据")
         if type(text) is not str:
             text = text.text()
         try:
@@ -87,6 +94,8 @@ class OwnFrame:
 
     @classmethod
     def _toFloatListByStrFromText(cls, text: str or QLineEdit) -> list or None:
+        if text is None:
+            return None
         if type(text) is not str:
             text = text.text()
         if len(text) > 0:
@@ -96,10 +105,42 @@ class OwnFrame:
                 if len(ele) > 0:
                     temp = cls._toFloatFromText(ele)
                     if temp is None:
+                        cls.informMsg("数据格式有错误,可能是因为:号后面没有直接相邻的数据")
                         res = None
                         break
                     res.append(temp)
         else:
+            res = None
+        return res
+
+    @classmethod
+    def _toFloatlistByStrFromText(cls, text: str or QLineEdit) -> list or None:
+        if text == None:
+            cls.informMsg("无获取数据")
+            res = None
+        if type(text) is not str:
+            text = text.text()
+        str_list = text.split(":")
+        float_list = []
+        for item in str_list:
+            float_list.append(float(item))
+        if len(str_list) == 3:
+            def _tofloatarrayFromfloatlist(float_list):
+                head = float_list[0]
+                end = float_list[1]
+                step = float_list[2]
+                N = int(np.floor((end - head) / step))
+                if N < 0:
+                    cls.informMsg("数据格式有问题")
+                    return None
+                float_array = [head]
+                for i in range(N):
+                    float_array.append(head + (i + 1) * step)
+                return float_array
+            float_array = _tofloatarrayFromfloatlist(float_list)
+            res = float_array
+        else:
+            cls.informMsg("数据格式有问题")
             res = None
         return res
 
@@ -123,6 +164,8 @@ class OwnFrame:
             if temp is not None:
                 allNone = False
             res.append(temp)
+        if allNone == False:
+            cls.informMsg("请填满所有的空格")
         return None if allNone else res
 
     def _setupDataInWidgets(self):
@@ -148,5 +191,19 @@ class OwnFrame:
         msgBox = QMessageBox()
         msgBox.setWindowTitle("inform")
         msgBox.setText(msg)
+        msgBox.exec_()  # 模态
+
+    @classmethod
+    def questionMsg(cls, msg: str):
+        msgBox = QMessageBox()
+        msgBox.setWindowTitle("确认框")
+        reply = QMessageBox.information(msgBox,  # 使用infomation信息框
+                                        "标题",
+                                        msg,
+                                        QMessageBox.Yes | QMessageBox.No)
+        if reply == QMessageBox.Yes:
+            return True
+        if reply == QMessageBox.No:
+            return False
         msgBox.exec_()  # 模态
 

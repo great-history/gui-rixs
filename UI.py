@@ -127,6 +127,7 @@ class OwnApplication:
 
     def _removeFrameFromMainWindow(self):
         self.frameContain.removeWidget(self.frames[self.curFrameIndex].getFrame())
+        self.frames[self.curFrameIndex].getFrame().setParent(None) # 这句话必须加上,否则不能previous
 
     def _handleOnGotoNextPage(self):
         next_p = self.curFrameIndex+1

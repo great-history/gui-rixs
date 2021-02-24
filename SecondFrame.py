@@ -14,6 +14,15 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5 import NavigationToolbar2QT as NavigationToolbar
 from matplotlib.figure import Figure
 
+def xas_1v1c_py(eval_i, eval_n, trans_op, ominc, gamma_c=0.1, thin=1.0, phi=0,
+                pol_type=None, gs_list=None, temperature=1.0, scatter_axis=None):
+    return False
+
+def rixs_1v1c_py(eval_i, eval_n, trans_op, ominc, eloss,
+                 gamma_c=0.1, gamma_f=0.01, thin=1.0, thout=1.0, phi=0.0,
+                 pol_type=None, gs_list=None, temperature=1.0, scatter_axis=None):
+    return False
+
 class SecondFrame(OwnFrame):
     def __init__(self, parent=None, width=None, height=None): # parent来自于OwnApplication
         OwnFrame.__init__(self, parent, width, height) # 获得父类中的实例变量
@@ -24,9 +33,19 @@ class SecondFrame(OwnFrame):
         self.frame.setMinimumWidth(width - 36)
 
         self.dataManager_spectra = DataManager_spectra()
-        self.eval_i = None
-        self.eval_n = None
-        self.trans_op = None
+        self.eval_i_fromFirstFrame = None
+        self.eval_n_fromFirstFrame = None
+        self.trans_op_fromFirstFrame = None
+        self.gs_list_fromFirstFrame = None
+
+        self.eval_i_present = None
+        self.eval_n_present = None
+        self.trans_op_present = None
+        self.gs_list_present = None  # 这几个用来存放第一个页面计算的结果或者load的结果
+        self.spectra_name_present = None
+
+        self.SpectraDataKeys = {"name", "poltype", "thin", "thout", "phi", "ominc", "eloss", "gamma_c", "gamma_f",
+                                "scattering_axis", "eval_i", "eval_n", "trans_op", "gs_list", "temperature", "spectra"}
 
         self._arrangeUI()
         self._retranslateAll()
@@ -444,8 +463,8 @@ class SecondFrame(OwnFrame):
         self.thin_text.setValidator(self.floatRegxValidator)
         self.thout_text.setValidator(self.floatRegxValidator)
         self.phi_text.setValidator(self.floatRegxValidator)
-        self.ominc_text.setValidator(self.floatListRegxValidator)
-        self.eloss_text.setValidator(self.floatListRegxValidator)
+        self.ominc_text.setValidator(self.floatlistRegxValidator)
+        self.eloss_text.setValidator(self.floatlistRegxValidator)
         self.gamma_c_text.setValidator(self.floatListRegxValidator)
         self.gamma_f_text.setValidator(self.floatListRegxValidator)
 
@@ -454,12 +473,13 @@ class SecondFrame(OwnFrame):
                 lineEdit.setValidator(self.floatRegxValidator)
 
     def _arrangeDataInWidgets(self):
+        super()._bindDataWithWidgets("spectra_name", self.spectra_name_text, self._toSimpleStrFromText)
         super()._bindDataWithWidgets("poltype", self.poltype_text, self._toSimpleStrFromText)
         super()._bindDataWithWidgets("thin", self.thin_text, self._toFloatFromText)
         super()._bindDataWithWidgets("thout", self.thout_text, self._toFloatFromText)
         super()._bindDataWithWidgets("phi", self.phi_text, self._toFloatFromText)
-        super()._bindDataWithWidgets("ominc", self.ominc_text, self._toFloatListByStrFromText)
-        super()._bindDataWithWidgets("eloss", self.eloss_text, self._toFloatListByStrFromText)
+        super()._bindDataWithWidgets("ominc", self.ominc_text, self._toFloatlistByStrFromText)
+        super()._bindDataWithWidgets("eloss", self.eloss_text, self._toFloatlistByStrFromText)
         super()._bindDataWithWidgets("gamma_c", self.gamma_c_text, self._toFloatListByStrFromText)
         super()._bindDataWithWidgets("gamma_f", self.gamma_f_text, self._toFloatListByStrFromText)
         super()._bindDataWithWidgets("scattering_axis", self.scattering_axis_texts, self._toFloatListByWidgets_2DFromText)
@@ -470,10 +490,24 @@ class SecondFrame(OwnFrame):
         # 哪些是必须填的参数
         ominc = super()._getDataFromInupt("ominc")
         eloss = super()._getDataFromInupt("eloss")
-        eval_i = self.eval_i
-        eval_n = self.eval_n
-        trans_op = self.trans_op
-        if ominc is None or eloss is None or eval_i is None or eval_n is None or trans_op is None:
+        eval_i = self.eval_i_present
+        eval_n = self.eval_n_present
+        trans_op = self.trans_op_present
+        # gs_list = self.gs_list_present
+        if ominc is None:
+            self.informMsg("请输入规范格式的ominc")
+            verified = False
+        if eloss is None:
+            self.informMsg("请输入规范格式的eloss")
+            verified = False
+        if eval_i is None:
+            self.informMsg("eval_i怎么不存在？")
+            verified = False
+        if eval_n is None:
+            self.informMsg("eval_n怎么不存在？")
+            verified = False
+        if trans_op is None:
+            self.informMsg("trans_op怎么不存在？")
             verified = False
         return verified
 
@@ -481,6 +515,7 @@ class SecondFrame(OwnFrame):
         if not self._verifyValidSpectraData():
             self.informMsg("信息不完整,请检查")
             return None
+        spectra_name = super()._getDataFromInupt("spectra_name")
         poltype = super()._getDataFromInupt("poltype")
         thin = super()._getDataFromInupt("thin")
         thout = super()._getDataFromInupt("thout")
@@ -490,9 +525,10 @@ class SecondFrame(OwnFrame):
         gamma_c = super()._getDataFromInupt("gamma_c")
         gamma_f = super()._getDataFromInupt("gamma_f")
         scattering_axis = super()._getDataFromInupt("scattering_axis")
+        temperature = super()._getDataFromInupt("temperature")
 
         spectraData = SpectraBasicData(
-            name=None,
+            name=spectra_name,
             poltype=poltype,
             thin=thin,
             thout=thout,
@@ -502,11 +538,11 @@ class SecondFrame(OwnFrame):
             gamma_c=gamma_c,
             gamma_f=gamma_f,
             scattering_axis=scattering_axis,
-            eval_i=None,
-            eval_n=None,
-            trans_op=None,
-            gs_list=None,
-            temperature=None)
+            eval_i=self.eval_i_present,
+            eval_n=self.eval_n_present,
+            trans_op=self.trans_op_present,
+            gs_list=self.gs_list_present,
+            temperature=temperature)
         return spectraData
 
     def _getItemFromSpectraData(self, parent, spectraData:SpectraBasicData) -> QListWidgetItem:
@@ -522,11 +558,17 @@ class SecondFrame(OwnFrame):
             self.informMsg(f"导入数据失败，未找到:{item.text()}")
             return
         # 根据数据设置界面
+        self.spectra_name_present = item.text()
+        self.eval_i_present = self.dataManager_spectra.spectraBasicDataList(self.spectra_name_present).eval_i
+        self.eval_n_present = self.dataManager_spectra.spectraBasicDataList(self.spectra_name_present).eval_n
+        self.trans_op_present = self.dataManager_spectra.spectraBasicDataList(self.spectra_name_present).trans_op
+        self.gs_list_present = self.dataManager_spectra.spectraBasicDataList(self.spectra_name_present).gs_list
         self._setInterfaceBySpectraData(data)
 
     def _setInterfaceBySpectraData(self, data:SpectraBasicData):  # data类型到时候需注明
         if data is None:
             return
+        self.spectra_name_text.setText("" if data.name is None else data.name)
         self.poltype_text.setText("" if data.poltype is None else data.poltype)
         self.thin_text.setText("" if data.thin is None else data.thin)
         self.thout_text.setText("" if data.thout is None else data.thout)
@@ -547,12 +589,65 @@ class SecondFrame(OwnFrame):
         return True
 
     def _handleOnSaveSpectraList(self):
-        self.informMsg("not implemented yet")
+        item = self.spectra_list.currentItem()
+        if item is None:
+            return False
+
+        fileName = item.text() + ".json"
+        SpectraData = self.dataManager_spectra.spectraBasicDataList[item.text()]
+        IsNameRight = False
+        fileName_choose, filetype = QFileDialog.getSaveFileName(self.frame,
+                                                                "文件保存",
+                                                                "." + fileName,  # 起始路径
+                                                                "Json Files (.json)")
+        # PyQt【控件】：QFileDialog.getSaveFileName()的使用
+        # 控件作用：打开文件资源管理器，获得你需要保存的文件名，注意：它不会帮你创建文件，只一个返回元组，元组第一项为你的文件路径。
+
+        str_list = fileName_choose.split("/")
+        if str_list[-1] == fileName:
+            IsNameRight = True
+            with open(fileName_choose, 'w') as f:
+                json.dump(SpectraData, f, indent=4)  # 若已存在该文件,就覆盖之前
+
+        if IsNameRight == False:
+            self.informMsg("文件名不是spectra_name,请重新保存")
+
+        return IsNameRight
+
         # TODO:to implement
 
     def _handleOnLoadSpectraList(self):
-        self.informMsg("not implemented yet")
-        # TODO:to implement
+        fileName, fileType = QFileDialog.getOpenFileName(self.frame, r'Load json',
+                                               r'D:\Users\yg\PycharmProjects\spectra_data',
+                                               r'json Files(*.json)')  # 打开程序文件所在目录是将路径换为.即可
+        with open(fileName, "r") as f:
+            spectraData = json.loads(f.read())  # temp是存放spectra data的数据类
+        if self.SpectraDataKeys != list(spectraData.keys()):
+            self.informMsg("打开了错误的文件")
+            return ""
+        spectraName = DataManager_spectra.getNameFromSpectraData(spectraData)
+        if len(spectraName) == 0:
+            self.informMsg("无名氏")
+            return ""
+        if spectraName in self.dataManager_spectra.spectraBasicDataList.keys():
+            reply = self.questionMsg("List中已经存在相同名称,是否进行覆盖？")
+            if reply == True:
+                self.dataManager_spectra.addSpectraData(spectraData)
+            if reply == False:
+                return ""
+        item = self._getItemFromSpectraData(self.spectra_list, spectraData)
+        row = 0
+        while row < self.spectra_list.count():
+            if self.spectra_list.item(row).text() == item.text():
+                break
+            row += 1
+        if row != self.spectra_list.count():
+            self.spectra_list.takeItem(row)
+        self.spectra_list.addItem(item)
+        self.spectra_list.sortItems()
+        self.spectra_list.setCurrentItem(item)
+
+        self._handleOnImportSpectraFromList(item)
 
     def _handleOnAddToSpectraList(self):
         spectraData = self._getSpectraDataFromInput()
@@ -568,31 +663,86 @@ class SecondFrame(OwnFrame):
                 break
             row += 1
         if row != self.spectra_list.count():
-            self.spectra_list.takeItem(row)
-        self.spectra_list.addItem(item)
-        self.spectra_list.sortItems()
-        self.spectra_list.setCurrentItem(item)
-        # TODO:to implement
+            reply = self.questionMsg("该名称的文件已存在,是否要覆盖？")
+            if reply == True:
+                self.spectra_list.takeItem(row)
+                self.spectra_list.addItem(item)
+                self.spectra_list.sortItems()
+                self.spectra_list.setCurrentItem(item)
+            if reply == False:
+                return
 
-    def _handleOnSpectrumCalculation(self):
-        if self.spectra_list.count() == 0:
-            self.informMsg("spectra_list中无item,请先添加")
-            return
-        if self.spectra_list.CurrentItem == None:
-            self.informMsg("没有选中item")
-            return
-
+    def _handleOnSpectrumCalculation(self) -> bool:
+        SpectraData = self._getSpectraDataFromInput()
+        if SpectraData == None:
+            return False
+        if self.spectra_name_present == None:  # 如果输入的数据没有保存,就报错
+            self.informMsg("请先保存Input再进行计算")
+            return False
 
         if self.combo.currentText() == "xas_1v1c_python_ed":
-            return
-            # xas = xas_1v1c_py(spectraData.eval_i, eval_n, trans_op, ominc, *, gamma_c=0.1, thin=1.0, phi=0,
-            #             pol_type=None, gs_list=None, temperature=1.0, scatter_axis=None)
+            ominc = SpectraData.ominc
+            gamma_c = SpectraData.gamma_c
+            if gamma_c is None:
+                gamma_c = 0.1
+            thin = SpectraData.thin
+            if thin is None:
+                thin = 1.0
+            phi = SpectraData.phi
+            if phi is None:
+                phi = 0
+            poltype = SpectraData.poltype
+            gs_list = self.gs_list_present
+            temperature = SpectraData.temperature
+            if temperature is None:
+                temperature = 1.0
+            scattering_axis = SpectraData.scattering_axis
+            if scattering_axis is not None:
+                scattering_axis = np.array(scattering_axis)
+            
+            if 'xas' in self.dataManager_spectra.spectraBasicDataList(self.spectra_name_present).spectra.keys():
+                reply = self.questionMsg("当前数据类中已经含有xas spectra,是否进行覆盖")
+                if reply == True:
+                    spectra = xas_1v1c_py(eval_i=self.eval_i_present, eval_n=self.eval_n_present, trans_op=self.trans_op_present,
+                                          ominc=ominc, gamma_c=gamma_c, thin=thin, phi=phi, pol_type=poltype, gs_list=gs_list,
+                                          temperature=temperature, scatter_axis=scattering_axis)
+            self.dataManager_spectra.spectraBasicDataList(self.spectra_name_present).spectra['xas'] = spectra
+            return True
+
         if self.combo.currentText() == "rixs_1v1c_python_ed":
-            return
-            # rixs = rixs_1v1c_py(eval_i, eval_n, trans_op, ominc, eloss, *,
-            #              gamma_c=0.1, gamma_f=0.01, thin=1.0, thout=1.0, phi=0.0,
-            #              pol_type=None, gs_list=None, temperature=1.0, scatter_axis=None)
-        # TODO:to implement
+            ominc = SpectraData.ominc
+            eloss = SpectraData.eloss
+            gamma_c = SpectraData.gamma_c
+            if gamma_c is None:
+                gamma_c = 0.1
+            gamma_f = SpectraData.gamma_f
+            if gamma_f is None:
+                gamma_f = 0.01
+            thin = SpectraData.thin
+            if thin is None:
+                thin = 1.0
+            thout = SpectraData.thout
+            if thout is None:
+                thout = 1.0
+            phi = SpectraData.phi
+            if phi is None:
+                phi = 0
+            poltype = SpectraData.poltype
+            gs_list = self.gs_list_present
+            temperature = SpectraData.temperature
+            if temperature is None:
+                temperature = 1.0
+            scatter_axis = SpectraData.scattering_axis
+            if scatter_axis is not None:
+                scatter_axis = np.array(scatter_axis)
+
+            spectra = rixs_1v1c_py(eval_i=self.eval_i_present, eval_n=self.eval_n_present,
+                                   trans_op=self.trans_op_present, ominc=ominc, eloss=eloss, gamma_c=gamma_c,
+                                   gamma_f=gamma_f, thin=thin, thout=thout, phi=phi, pol_type=poltype, gs_list=gs_list,
+                                   temperature=temperature, scatter_axis=scatter_axis)
+
+            self.dataManager_spectra.spectraBasicDataList(self.spectra_name_present).spectra['rixs'] = spectra
+            return True
 
     def _handleOnPlotSpectrum(self):
         self.informMsg("not implemented yet")
@@ -622,25 +772,24 @@ class SecondFrame(OwnFrame):
         return
 
 
-
-if __name__ == '__main__':
-    app = QApplication(sys.argv)
-    mainWindow = QWidget()
-    mainWindow.setMinimumWidth(600)
-    mainWindow.setMinimumHeight(600)
-    frame = QFrame(mainWindow)
-    box = QGroupBox(frame)
-    poltype_label = QLabel(box)
-    poltype_text = QLineEdit(box)
-    boxlayout = QGridLayout(box)
-    boxlayout.addWidget(poltype_label,0, 0, 1, 3, QtCore.Qt.AlignTop)
-    boxlayout.addWidget(poltype_text,0,4,1,2, QtCore.Qt.AlignTop)
-    box.setLayout(boxlayout)
-    _translate = QtCore.QCoreApplication.translate
-    poltype_label.setText(_translate("SecondFrame_poltype_label", "poltype"))
-    
-    mainLayout = QGridLayout(frame)
-    mainLayout.addWidget(box, 0, 0, 1, 4, QtCore.Qt.AlignTop)
-    frame.setLayout(mainLayout)
-    mainWindow.show()
-    app.exec()
+# if __name__ == '__main__':
+#     app = QApplication(sys.argv)
+#     mainWindow = QWidget()
+#     mainWindow.setMinimumWidth(600)
+#     mainWindow.setMinimumHeight(600)
+#     frame = QFrame(mainWindow)
+#     box = QGroupBox(frame)
+#     poltype_label = QLabel(box)
+#     poltype_text = QLineEdit(box)
+#     boxlayout = QGridLayout(box)
+#     boxlayout.addWidget(poltype_label,0, 0, 1, 3, QtCore.Qt.AlignTop)
+#     boxlayout.addWidget(poltype_text,0,4,1,2, QtCore.Qt.AlignTop)
+#     box.setLayout(boxlayout)
+#     _translate = QtCore.QCoreApplication.translate
+#     poltype_label.setText(_translate("SecondFrame_poltype_label", "poltype"))
+#
+#     mainLayout = QGridLayout(frame)
+#     mainLayout.addWidget(box, 0, 0, 1, 4, QtCore.Qt.AlignTop)
+#     frame.setLayout(mainLayout)
+#     mainWindow.show()
+#     app.exec()
