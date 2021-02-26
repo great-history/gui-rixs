@@ -6,13 +6,8 @@ from OwnFrame import *
 from DataManager import *
 import re
 import numpy as np
-
-
-def ed_1v1c_py(shell_name, *, shell_level=None, v_soc=None, c_soc=0,
-               v_noccu=1, slater=None, ext_B=None, on_which='spin',
-               v_cfmat=None, v_othermat=None, loc_axis=None, verbose=0):
-    OwnFrame.informMsg("尚未导入edrixs")
-    return ""
+from edrixs.solvers import *
+import json
 
 class FirstFrame(OwnFrame):
     def __init__(self, parent=None, width=None, height=None):
@@ -23,13 +18,25 @@ class FirstFrame(OwnFrame):
         self.frame.setMinimumHeight(height-20)
         self.frame.setMinimumWidth(width-36)
 
-        self.dataManager = DataManager_atom()
-
+        self._setupDataVariable()
         self._arrangeUI()
         self._retranslateAll()
 
         self._textInputRestrict()
         self._arrangeDataInWidgets()
+
+    def _setupDataVariable(self):
+        self.dataManager = DataManager_atom()
+        self.eval_i_present = None
+        self.eval_n_present = None
+        self.trans_op_present = None
+        self.gs_list = None
+        self.atom_name_present = None
+        self.AtomDataKeys = ['v_name', 'v_noccu', 'c_name', 'c_noccu', 'slater_Fx_vv_initial', 'slater_Fx_vc_initial',
+                             'slater_Gx_vc_initial', 'slater_Fx_cc_initial', 'slater_Fx_vv_intermediate', 
+                             'slater_Fx_vc_intermediate', 'slater_Gx_vc_intermediate', 'slater_Fx_cc_intermediate', 
+                             'v_soc', 'c_soc', 'shell_level_v', 'shell_level_c', 'v1_ext_B', 'v1_on_which', 'v_cmft', 
+                             'v_othermat', 'local_axis', 'ed']
 
     def getFrame(self):
         return self.scrollForFirstFrame
@@ -375,11 +382,14 @@ class FirstFrame(OwnFrame):
         # 显示精确对角化的结果
         self.firstPageOutputBox = QGroupBox(self.frame)
         # TODO:add output widgets
+        self.ed_show_button = QPushButton(self.firstPageOutputBox)
+        self.ed_show_button.setFixedHeight(32)
+        self.ed_show_button.clicked.connect(self._handleOnEdShow)
         firstPageOutputBoxLayout = QGridLayout(self.firstPageOutputBox)
         firstPageOutputBoxLayout.setAlignment(QtCore.Qt.AlignTop)
-
+        firstPageOutputBoxLayout.addWidget(self.ed_show_button, 0, 0, QtCore.Qt.AlignTop)
         self.firstPageOutputBox.setLayout(firstPageOutputBoxLayout)
-        # TODO:here to continue
+
         # 底下一些具体参数最后再设置，要注意最后的比例会影响最终能否填满窗口
         mainLayout = QGridLayout(self.frame)  # 主要的布局
         mainLayout.setAlignment(QtCore.Qt.AlignTop)
@@ -396,7 +406,7 @@ class FirstFrame(OwnFrame):
         mainLayout.addWidget(self.verbose_label, 3, 2, 1, 1, QtCore.Qt.AlignTop)
         mainLayout.addWidget(self.verbose_text, 3, 3, 1, 1, QtCore.Qt.AlignTop)
         mainLayout.addWidget(self.channel_box, 4, 2, 2, 2, QtCore.Qt.AlignTop)
-        mainLayout.addWidget(self.firstPageOutputBox, 6, 0, 3, 6, QtCore.Qt.AlignTop)
+        mainLayout.addWidget(self.firstPageOutputBox, 6, 0, 3, 2, QtCore.Qt.AlignTop)
         for t in range(mainLayout.columnCount()):
             mainLayout.setColumnStretch(t, 1)
         for t in range(mainLayout.rowCount()):
@@ -636,7 +646,10 @@ class FirstFrame(OwnFrame):
             _translate("FirstFrame_ed_calculation_button_label", "RUN"))
 
         self.firstPageOutputBox.setTitle(
-            _translate("FirstFrame_firstPageOutputBox_title", "output"))
+            _translate("FirstFrame_firstPageOutputBox_title", "ed_output"))
+
+        self.ed_show_button.setText(
+            _translate("FirstFrame_ed_show_button_text", "ed_show"))
 
     def _retranslateDynamicly(self):
         # 这个不在初始化时调用了，在后续动态更新中被调用
@@ -650,8 +663,8 @@ class FirstFrame(OwnFrame):
 
         for row in self.v1_othermat_para_texts:  # 后续如果更新矩阵的话要重新设置一遍
             for lineEdit in row:
-                lineEdit.setToolTip(
-                    _translate("FirstFrame_v1_othermat_para_texts_tip", ""))
+                # lineEdit.setToolTip(
+                #     _translate("FirstFrame_v1_othermat_para_texts_tip", ""))
                 lineEdit.setPlaceholderText(
                     _translate("FirstFrame_v1_othermat_para_texts_sample", "例:1.0"))
 
@@ -693,10 +706,10 @@ class FirstFrame(OwnFrame):
 
         for row in self.v1_cfmt_para_texts:  # 这里只是初始化，后续如果更新矩阵的话要重新设置一遍
             for lineEdit in row:
-                lineEdit.setValidator(self.floatRegxValidator)
+                lineEdit.setValidator(self.complexRegxValidator)
         for row in self.v1_othermat_para_texts:  # 这里只是初始化，后续如果更新矩阵的话要重新设置一遍
             for lineEdit in row:
-                lineEdit.setValidator(self.floatRegxValidator)
+                lineEdit.setValidator(self.complexRegxValidator)
 
         for row in self.local_axis_texts:
             for lineEdit in row:
@@ -738,11 +751,11 @@ class FirstFrame(OwnFrame):
         super()._bindDataWithWidgets("v1_ext_B", self.v1_ext_B_texts, self._toFloatListByWidgets_1DFromText)
         super()._bindDataWithWidgets("v1_on_which", self.v1_on_which_text, self._toSimpleStrFromText)
 
-        super()._bindDataWithWidgets("v1_cfmt", self.v1_cfmt_para_texts, self._toFloatListByWidgets_2DFromText)
-        super()._bindDataWithWidgets("v1_othermat", self.v1_othermat_para_texts, self._toFloatListByWidgets_2DFromText)
+        super()._bindDataWithWidgets("v1_cfmt", self.v1_cfmt_para_texts, self._toComplexListByWidgets_2DFromText)
+        super()._bindDataWithWidgets("v1_othermat", self.v1_othermat_para_texts, self._toComplexListByWidgets_2DFromText)
         super()._bindDataWithWidgets("local_axis", self.local_axis_texts, self._toFloatListByWidgets_2DFromText)
 
-    def _verifyValidAtomData(self):
+    def _verifyValidAtomData(self) -> bool:
         # 如果验证通过，可以加入到列表中
         verified = True
 
@@ -750,8 +763,14 @@ class FirstFrame(OwnFrame):
         v_noccu = super()._getDataFromInupt("v_noccu")  # int
         v_soc = super()._getDataFromInupt("v_soc")  # float-[float], first one not empty
 
-        if v_name is None or v_noccu is None or v_soc is None:
+        if v_name is None:
+            self.informMsg("请输入规范格式的v_name")
             verified = False
+        if v_noccu is None:
+            self.informMsg("请输入规范格式的v_noccu")
+            verified = False
+        if v_soc is None:
+            self.informMsg("请输入规范格式的v_soc")
 
         return verified
 
@@ -767,22 +786,45 @@ class FirstFrame(OwnFrame):
         c_noccu = super()._getDataFromInupt("c_noccu")  # int
         v_soc = super()._getDataFromInupt("v_soc")  # float-float, take the first
         c_soc = super()._getDataFromInupt("c_soc")  # float
-        slater_Fx_vv = super()._getDataFromInupt("slater_Fx_vv_initial")  # float-float-...
-        slater_Fx_vc = super()._getDataFromInupt("slater_Fx_vc_initial")  # float-float-...
-        slater_Gx_vc = super()._getDataFromInupt("slater_Gx_vc_initial")  # float-float-...
-        slater_Fx_cc = super()._getDataFromInupt("slater_Fx_cc_initial")  # float-float-...
+        slater_Fx_vv_initial = super()._getDataFromInupt("slater_Fx_vv_initial")  # float-float-...
+        slater_Fx_vc_initial = super()._getDataFromInupt("slater_Fx_vc_initial")  # float-float-...
+        slater_Gx_vc_initial = super()._getDataFromInupt("slater_Gx_vc_initial")  # float-float-...
+        slater_Fx_cc_initial = super()._getDataFromInupt("slater_Fx_cc_initial")  # float-float-...
+        slater_Fx_vv_intermediate = super()._getDataFromInupt("slater_Fx_vv_initial")  # float-float-...
+        slater_Fx_vc_intermediate = super()._getDataFromInupt("slater_Fx_vc_initial")  # float-float-...
+        slater_Gx_vc_intermediate = super()._getDataFromInupt("slater_Gx_vc_initial")  # float-float-...
+        slater_Fx_cc_intermediate = super()._getDataFromInupt("slater_Fx_cc_initial")  # float-float-...
+        shell_level_v = super()._getDataFromInupt("shell_level_v")  # float
+        shell_level_c = super()._getDataFromInupt("shell_level_c")  # float
+        v1_ext_B = super()._getDataFromInupt("v1_ext_B")  # float list
+        v1_on_which = super()._getDataFromInupt("v1_on_which")  # str
+        v_cmft = super()._getDataFromInupt("v_cmft") # 2d complex array
+        v_othermat = super()._getDataFromInupt("v_othermat")  # 2d complex array
+        local_axis = super()._getDataFromInupt("local_axis") # 2d float array
+
 
         atomData = AtomBasicData(
             v_name=v_name,
             v_noccu=v_noccu,
             c_name=c_name,
             c_noccu=c_noccu,
-            slater_Fx_vv=slater_Fx_vv,
-            slater_Fx_vc=slater_Fx_vc,
-            slater_Gx_vc=slater_Gx_vc,
-            slater_Fx_cc=slater_Fx_cc,
-            v_soc=v_soc,  # (float,float)
-            c_soc=c_soc
+            slater_Fx_vv_initial=slater_Fx_vv_initial,
+            slater_Fx_vc_initial=slater_Fx_vc_initial,
+            slater_Gx_vc_initial=slater_Gx_vc_initial,
+            slater_Fx_cc_initial=slater_Fx_cc_initial,
+            slater_Fx_vv_intermediate=slater_Fx_vv_intermediate,
+            slater_Fx_vc_intermediate=slater_Fx_vc_intermediate,
+            slater_Gx_vc_intermediate=slater_Gx_vc_intermediate,
+            slater_Fx_cc_intermediate=slater_Fx_cc_intermediate,
+            v_soc=v_soc,  # 只存initial
+            c_soc=c_soc,
+            shell_level_v=shell_level_v,
+            shell_level_c=shell_level_c,
+            v1_ext_B=v1_ext_B,
+            v1_on_which=v1_on_which,
+            v_cmft=v_cmft,
+            v_othermat=v_othermat,
+            local_axis=local_axis,
         )
         return atomData
 
@@ -802,36 +844,100 @@ class FirstFrame(OwnFrame):
         self.c_noccu_text.setText("" if data.c_noccu is None else str(data.c_noccu))
         self.v_soc_text.setText("" if data.v_soc is None else str(data.v_soc))
         self.c_soc_text.setText("" if data.c_soc is None else str(data.c_soc))
+        self.shell_level_c_text.setText("" if data.shell_level_c is None else str(data.shell_level_c))
+        self.shell_level_v_text.setText("" if data.shell_level_v is None else str(data.shell_level_v))
+        self.v1_on_which_text.setText("" if data.v1_on_which is None else str(data.v1_on_which))
 
         temp = ""
-        if data.slater_Fx_vv is not None:
-            for i in range(len(data.slater_Fx_vv)):
+        if data.slater_Fx_vv_initial is not None:
+            for i in range(len(data.slater_Fx_vv_initial)):
                 if i > 0:
                     temp += ";"
-                temp += str(data.slater_Fx_vv[i])
+                temp += str(data.slater_Fx_vv_initial[i])
         self.slater_initial_Fx_vv_text.setText(temp)
         temp = ""
-        if data.slater_Fx_vc is not None:
-            for i in range(len(data.slater_Fx_vc)):
+        if data.slater_Fx_vc_initial is not None:
+            for i in range(len(data.slater_Fx_vc_initial)):
                 if i > 0:
                     temp += ";"
-                temp += str(data.slater_Fx_vc[i])
+                temp += str(data.slater_Fx_vc_initial[i])
         self.slater_initial_Fx_vc_text.setText(temp)
         temp = ""
-        if data.slater_Gx_vc is not None:
-            for i in range(len(data.slater_Gx_vc)):
+        if data.slater_Gx_vc_initial is not None:
+            for i in range(len(data.slater_Gx_vc_initial)):
                 if i > 0:
                     temp += ";"
-                temp += str(data.slater_Gx_vc[i])
+                temp += str(data.slater_Gx_vc_initial[i])
         self.slater_initial_Gx_vc_text.setText(temp)
         temp = ""
-        if data.slater_Fx_cc is not None:
-            for i in range(len(data.slater_Fx_cc)):
+        if data.slater_Fx_cc_initial is not None:
+            for i in range(len(data.slater_Fx_cc_initial)):
                 if i > 0:
                     temp += ";"
-                temp += str(data.slater_Fx_cc[i])
-        self.slater_initial_Fx_cc_text.setText(temp)
-        # intermediate 的数据应该不用加载
+                temp += str(data.slater_Fx_cc_initial[i])
+        self.slater_intermediate_Fx_cc_text.setText(temp)
+
+        temp = ""
+        if data.slater_Fx_vv_intermediate is not None:
+            for i in range(len(data.slater_Fx_vv_intermediate)):
+                if i > 0:
+                    temp += ";"
+                temp += str(data.slater_Fx_vv_intermediate[i])
+        self.slater_intermediate_Fx_vv_text.setText(temp)
+        temp = ""
+        if data.slater_Fx_vc_intermediate is not None:
+            for i in range(len(data.slater_Fx_vc_intermediate)):
+                if i > 0:
+                    temp += ";"
+                temp += str(data.slater_Fx_vc_intermediate[i])
+        self.slater_intermediate_Fx_vc_text.setText(temp)
+        temp = ""
+        if data.slater_Gx_vc_intermediate is not None:
+            for i in range(len(data.slater_Gx_vc_intermediate)):
+                if i > 0:
+                    temp += ";"
+                temp += str(data.slater_Gx_vc_intermediate[i])
+        self.slater_intermediate_Gx_vc_text.setText(temp)
+        temp = ""
+        if data.slater_Fx_cc_intermediate is not None:
+            for i in range(len(data.slater_Fx_cc_intermediate)):
+                if i > 0:
+                    temp += ";"
+                temp += str(data.slater_Fx_cc_intermediate[i])
+        self.slater_intermediate_Fx_cc_text.setText(temp)
+
+        if data.v1_ext_B is not None:
+            i = 0
+            for lineEdit in self.v1_ext_B_texts:
+                lineEdit.setText(data.v1_ext_B[i])
+                i += 1
+
+        if data.local_axis is not None:
+            i = 0
+            j = 0
+            for row in self.local_axis_texts:
+                for lineEdit in row:
+                    lineEdit.setText(data.local_axis[i][j])
+                    j += 1
+                i += 1
+
+        if data.v_cmft is not None:
+            i = 0
+            j = 0
+            for row in self.v1_cfmt_para_texts:
+                for lineEdit in row:
+                    lineEdit.setText(data.v_cmft[i][j])
+                    j += 1
+                i += 1
+
+        if data.v_othermat is not None:
+            i = 0
+            j = 0
+            for row in self.v1_othermat_para_texts:
+                for lineEdit in row:
+                    lineEdit.setText(data.v_othermat[i][j])
+                    j += 1
+                i += 1
 
     def _handleOnAddToAtomList(self):
         atomData = self._getAtomDataFromInput()
@@ -872,18 +978,76 @@ class FirstFrame(OwnFrame):
             return
         # 根据数据设置界面
         self._setInterfaceByAtomData(data)
+        # 这里只考虑了python_ed的情况,对于fortran的情形先不考虑
+        self.atom_name_present = item.text()
+        self.eval_i_present = self.dataManager.atomBasicDataList(item.text()).ed("eval_i_present")
+        self.eval_n_present = self.dataManager.atomBasicDataList(item.text()).ed("eval_n_present")
+        self.trans_op_present = self.dataManager.atomBasicDataList(item.text()).ed("trans_op")
+        self.gs_list_present = self.dataManager.atomBasicDataList(item.text()).ed("gs_list")
 
     def _handleOnSaveAtomList(self):
-        self.informMsg("not implemented yet")
-        # TODO:to implement
+        item = self.atom_list.currentItem()
+        if item is None:
+            self.informMsg("未选中atom_list中的item")
+            return False
+
+        fileName = item.text() + ".json"
+        AtomData = self.dataManager.atomBasicDataList[item.text()]
+        fileName_choose, filetype = QFileDialog.getSaveFileName(self.scrollForFirstFrame,
+                                                                "文件保存",
+                                                                "." + fileName,  # 起始路径
+                                                                "Json Files (.json)")
+        # PyQt【控件】：QFileDialog.getSaveFileName()的使用
+        # 控件作用：打开文件资源管理器，获得你需要保存的文件名，注意：它不会帮你创建文件，只一个返回元组，元组第一项为你的文件路径。
+
+        str_list = fileName_choose.split("/")
+        IsNameRight = False
+        if str_list[-1] == fileName:
+            IsNameRight = True
+            with open(fileName_choose, 'w') as f:
+                json.dump(AtomData, f, indent=4)  # 若已存在该文件,就覆盖之前
+
+        if IsNameRight == False:
+            self.informMsg("文件名不是atom_name,请重新保存")
+
+        return IsNameRight
 
     def _handleOnLoadAtomList(self):
-        self.informMsg("not implemented yet")
-        # TODO:to implement
+        fileName, fileType = QFileDialog.getOpenFileName(self.frame, r'Load json',
+                                                         r'.', r'json Files(*.json)')  # 打开程序文件所在目录是将路径换为.即可
+        with open(fileName, "r") as f:
+            AtomData = json.loads(f.read())  # temp是存放spectra data的数据类
+        if self.AtomDataKeys != list(AtomData.keys()):
+            self.informMsg("打开了错误的文件")
+            return ""
+        AtomName = DataManager_spectra.getNameFromSpectraData(AtomData)
+        if len(AtomName) == 0:
+            self.informMsg("无名氏")
+            return ""
+        if AtomName in self.dataManager.atomBasicDataList.keys():
+            reply = self.questionMsg("List中已经存在相同名称,是否进行覆盖？")
+            if reply == True:
+                self.dataManager.addAtomData(AtomData)
+            if reply == False:
+                return ""
+        item = self._getItemFromAtomData(self.atom_list, AtomData)
+        row = 0
+        while row < self.atom_list.count():
+            if self.atom_list.item(row).text() == item.text():
+                break
+            row += 1
+        if row != self.atom_list.count():
+            self.atom_list.takeItem(row)
+        self.atom_list.addItem(item)
+        self.atom_list.sortItems()
+        self.atom_list.setCurrentItem(item)
+
+        self._handleOnImportAtomFromList(item)
 
     def _getAtomDataFromAtomList(self, item: QListWidgetItem) -> AtomBasicData or None:
         return self.dataManager.getAtomDataByName(item.text())
 
+    # 生成self.eval_i/eval_n/trans_op/...
     def _handleOnEdCalculation(self):
         if self.ed_combo.currentText() == "ed_1v1c_py":
             v_name = super()._getDataFromInupt("v_name")
@@ -917,6 +1081,8 @@ class FirstFrame(OwnFrame):
             c_soc = super()._getDataFromInupt("c_soc")
 
             v_noccu = super()._getDataFromInupt("v_noccu")
+            if v_noccu == None or len(v_noccu)==0:
+                v_noccu = 1
 
             slater_initial = super()._getDataFromInupt("slater_Fx_vv_initial")
             slater_initial += super()._getDataFromInupt("slater_Fx_vc_initial")
@@ -936,42 +1102,30 @@ class FirstFrame(OwnFrame):
             on_which = super()._getDataFromInupt("v1_on_which")
 
             v_cmft = super()._getDataFromInupt("v1_cfmt")
-            dim = len(v_cmft)
-            if dim != 0:
-                for i in range(dim):
-                    if len(v_cmft[i]) != dim:
-                        self.informMsg("请输入正确维数的v_cmft")
-                        return ""
             v_cmft = np.array(v_cmft)
 
             v_othermat = super()._getDataFromInupt("v1_othermat")
-            dim = len(v_othermat)
-            if dim != 0:
-                for i in range(dim):
-                    if len(v_othermat[i]) != dim:
-                        self.informMsg("请输入正确维数的v_othermat")
-                        return ""
             v_othermat = np.array(v_othermat)
 
             local_axis = super()._getDataFromInupt("local_axis")
-            dim = len(local_axis)
-            if dim != 3 and dim != 0:
-                self.informMsg("请输入正确维数的local_axis")
-                return ""
-            if dim == 3:
-                for i in range(3):
-                    if len(v_othermat[i]) != 3:
-                        self.informMsg("请输入正确维数的v_othermat")
-                        return ""
             local_axis = np.array(local_axis)
+            if np.dot(local_axis.T, local_axis) != np.diag([1]*4):
+                self.informMsg("请输入实幺正矩阵local_axis")
+                return False
 
             verbose = super()._getDataFromInupt("verbose")
 
-            return ed_1v1c_py(shell_name=shell_name, shell_level=shell_level, v_soc=v_soc, c_soc=c_soc,
-                           v_noccu=v_noccu, slater=slater, ext_B=ext_B, on_which=on_which,
+            self.eval_i, self.eval_n, self.trans_op = ed_1v1c_py(shell_name=shell_name, shell_level=shell_level,
+                           v_soc=v_soc, c_soc=c_soc, v_noccu=v_noccu, slater=slater, ext_B=ext_B, on_which=on_which,
                            v_cfmat=v_cmft, v_othermat=v_othermat, loc_axis=local_axis, verbose=verbose)
+            return True
 
         if self.ed_combo.currentText() == "ed_1v1c_fort":
-            return self.informMsg("not implemented yet")
+            self.informMsg("not implemented yet")
+            return False
         if self.ed_combo.currentText() == "ed_2v1c_fort":
-            return self.informMsg("not implemented yet")
+            self.informMsg("not implemented yet")
+            return False
+
+    def _handleOnEdShow(self):
+        return

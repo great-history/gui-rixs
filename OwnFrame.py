@@ -62,14 +62,22 @@ class OwnFrame:
             r"^(?!;)(((\-?(?!0)\d*\.?\d*)|(\-?(0\.)\d*)|0);(?!;))?((\-?(?!0)\d*\.?\d*)|(\-?(0\.)\d*)|0)")
         cls.twoFloatRegxValidator = QtGui.QRegExpValidator(twoFloatRegx)
 
+        # 复数的'\-?\d+\.?\d+[(\-|\+)]{1}\d+\.?\d+[j]'怎么写出更好的复数正则表达式？？
+        complexRegx = QtCore.QRegExp('\-?\d+\.?\d+[(\-|\+)]{1}\d+\.?\d+[j]')
+        cls.complexRegxValidator = QtGui.QRegExpValidator(complexRegx)
+
     @classmethod
     def _toSimpleStrFromText(cls, text: str or QLineEdit) -> str or None:
+        if text == None:
+            return None
         if type(text) is not str:
             text = text.text()
         return None if len(text) == 0 else text
 
     @classmethod
     def _toIntFromText(cls, text: str or QLineEdit) -> int or None:
+        if text == None:
+            return None
         if type(text) is not str:
             text = text.text()
         try:
@@ -82,11 +90,24 @@ class OwnFrame:
     @classmethod
     def _toFloatFromText(cls, text: str or QLineEdit) -> float or None:
         if text == None:
-            cls.informMsg("未获取数据")
+            return None
         if type(text) is not str:
             text = text.text()
         try:
             res = None if len(text) == 0 else (0.0 if text == "." else float(text))
+        except ValueError:
+            cls.informMsg("数据格式有错误:on to float")
+            res = None
+        return res
+
+    @classmethod
+    def _toComplexFromText(cls, text: str or QLineEdit) -> float or None:
+        if text == None:
+            return None
+        if type(text) is not str:
+            text = text.text()
+        try:
+            res = None if len(text) == 0 else (0.0 if text == "." else complex(text))
         except ValueError:
             cls.informMsg("数据格式有错误:on to float")
             res = None
@@ -117,7 +138,7 @@ class OwnFrame:
     def _toFloatlistByStrFromText(cls, text: str or QLineEdit) -> list or None:
         if text == None:
             cls.informMsg("无获取数据")
-            res = None
+            return None
         if type(text) is not str:
             text = text.text()
         str_list = text.split(":")
@@ -146,21 +167,43 @@ class OwnFrame:
 
     @classmethod
     def _toFloatListByWidgets_1DFromText(cls, widgets: list) -> list or None:
-        if len(widgets) == 0:
-            return None
         res = []
         for ele in widgets:
-            res.append(cls._toFloatFromText(ele.text()))  # 可能得到None的元素，代表这个框没有输入，一些情况下没有输入默认为0，一些情况下有其他默认值
+            item = cls._toFloatFromText(ele.text())
+            if item == None:
+                item =0
+            res.append(item)  # 可能得到None的元素，代表这个框没有输入，一些情况下没有输入默认为0，一些情况下有其他默认值
+        return res
+
+    @classmethod
+    def _toComplexListByWidgets_1DFromText(cls, widgets: list) -> list or None:
+        res = []
+        for ele in widgets:
+            item = cls._toComplexFromText(ele.text())
+            if item == None:
+                item = 0
+            res.append(item)  # 可能得到None的元素，代表这个框没有输入，一些情况下没有输入默认为0，一些情况下有其他默认值
         return res
 
     @classmethod
     def _toFloatListByWidgets_2DFromText(cls, widgets: [[]]) -> [[]] or None:
-        if len(widgets) == 0:
-            return None
         res = []
         allNone = True
         for ele in widgets:
             temp = cls._toFloatListByWidgets_1DFromText(ele)
+            if temp is not None:
+                allNone = False
+            res.append(temp)
+        if allNone == False:
+            cls.informMsg("请填满所有的空格")
+        return None if allNone else res
+
+    @classmethod
+    def _toComplexListByWidgets_2DFromText(cls, widgets: [[]]) -> [[]] or None:
+        res = []
+        allNone = True
+        for ele in widgets:
+            temp = cls._toComplexListByWidgets_1DFromText(ele)
             if temp is not None:
                 allNone = False
             res.append(temp)

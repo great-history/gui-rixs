@@ -131,12 +131,30 @@ class OwnApplication:
 
     def _handleOnGotoNextPage(self):
         next_p = self.curFrameIndex+1
-        if next_p >= len(self.frames):  # 没有下一页了
+        if next_p >= len(self.frames):  # 没有下一页了,这里len(self.frame) = 2,此时self.curFrameIndex = 1
             self.informMsg("已经是最后一页了")
             return
+
+        if self.frames[self.curFrameIndex]._verifyValidAtomData() == False:
+            if self.questionMsg("数据不完整") == None:
+                return
+
+        if self.frames[self.curFrameIndex].eval_i_present == None or \
+                self.frames[self.curFrameIndex].eval_n_present == None or \
+                self.frames[self.curFrameIndex].trans_op == None:
+            if self.questionMsg("尚未进行精确对角化") == None:
+                return
+
         self._removeFrameFromMainWindow()
         self.curFrameIndex += 1
         self._addFrameToMainWindow()
+        self.frames[self.curFrameIndex].spectra_name_text.setText(self.frames[self.curFrameIndex-1].atom_name_present)
+        self.frames[self.curFrameIndex].spectra_name_present = self.frames[self.curFrameIndex-1].atom_name_present
+        self.frames[self.curFrameIndex].eval_i_present = self.frames[self.curFrameIndex-1].eval_i_present
+        self.frames[self.curFrameIndex].eval_i_fromFirstFrame = self.frames[self.curFrameIndex-1].eval_i_present
+        self.frames[self.curFrameIndex].eval_n_present = self.frames[self.curFrameIndex-1].eval_n_present
+        self.frames[self.curFrameIndex].eval_n_fromFirstFrame = self.frames[self.curFrameIndex-1].eval_n_present
+        self.frames[self.curFrameIndex]._retranslateTips()  # 刷新第二个页面
 
     def _handleOnGotoPreviousPage(self):
         next_p = self.curFrameIndex-1
@@ -151,6 +169,19 @@ class OwnApplication:
         msgBox = QMessageBox()
         msgBox.setWindowTitle("inform")
         msgBox.setText(msg)
+        msgBox.exec_()  # 模态
+
+    def questionMsg(self, msg: str):
+        msgBox = QMessageBox()
+        msgBox.setWindowTitle("确认框")
+        reply = QMessageBox.information(msgBox,  # 使用infomation信息框
+                                        "标题",
+                                        msg,
+                                        QMessageBox.Yes | QMessageBox.No)
+        if reply == QMessageBox.Yes:
+            return True
+        if reply == QMessageBox.No:
+            return False
         msgBox.exec_()  # 模态
 
 
