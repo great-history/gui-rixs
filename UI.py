@@ -18,7 +18,6 @@ class OwnApplication:
         self._setFont()
 
         self._arrangeUI()
-        self.mainWindow.show()
 
     def _setupMainWindow(self):
         self.mainWindow.setMinimumHeight(720)
@@ -129,6 +128,7 @@ class OwnApplication:
         self.frameContain.removeWidget(self.frames[self.curFrameIndex].getFrame())
         self.frames[self.curFrameIndex].getFrame().setParent(None) # 这句话必须加上,否则不能previous
 
+    # 为什么这里的return似乎不起作用？？非常奇怪
     def _handleOnGotoNextPage(self):
         next_p = self.curFrameIndex+1
         if next_p >= len(self.frames):  # 没有下一页了,这里len(self.frame) = 2,此时self.curFrameIndex = 1
@@ -136,13 +136,13 @@ class OwnApplication:
             return
 
         if self.frames[self.curFrameIndex]._verifyValidAtomData() == False:
-            if self.questionMsg("数据不完整") == None:
+            if self.questionMsg("数据不完整,是否继续跳到下一页？？") == False:
                 return
 
         if self.frames[self.curFrameIndex].eval_i_present == None or \
                 self.frames[self.curFrameIndex].eval_n_present == None or \
                 self.frames[self.curFrameIndex].trans_op == None:
-            if self.questionMsg("尚未进行精确对角化") == None:
+            if self.questionMsg("尚未进行精确对角化,是否仍要继续跳到下一页？？") == False:
                 return
 
         self._removeFrameFromMainWindow()
@@ -189,4 +189,5 @@ class OwnApplication:
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     myapp = OwnApplication()
+    myapp.mainWindow.show()
     app.exec_()

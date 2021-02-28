@@ -240,9 +240,8 @@ class FirstFrame(OwnFrame):
         self.atom_list = QListWidget(boxAtomList)  # 一个列表，包含各个电子的情况
         # 给list设置一个右键菜单，可以右键删除
         # 然后双击事件的话是打开进行修改
-        atom_list_menu = QMenu(self.atom_list)
         self.atom_list.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-
+        atom_list_menu = QMenu(self.atom_list)
         self.atom_list_menu_import_action = QAction(atom_list_menu)
 
         def atom_list_import_action():  # 这个action不能直接接handleOnImport，这个Import是带参数item的
@@ -255,7 +254,7 @@ class FirstFrame(OwnFrame):
         atom_list_menu.addAction(self.atom_list_menu_import_action)
         atom_list_menu.addAction(self.atom_list_menu_delete_action)
 
-        def atom_list_menu_show(pos):
+        def atom_list_menu_show():
             # 还要判断一下是否选中item
             if self.atom_list.currentItem() is None:
                 return
@@ -669,6 +668,7 @@ class FirstFrame(OwnFrame):
                     _translate("FirstFrame_v1_othermat_para_texts_sample", "例:1.0"))
 
     def _textInputRestrict(self):
+        # to do list:复数输入的正则表达式
         forOnWhichRegx = QtCore.QRegExp(r"spin|orbital|both")
         forOnWhichRegxValidator = QtGui.QRegExpValidator(forOnWhichRegx, self.frame)
         v_nameRegx= QtCore.QRegExp(r'(\d{1}s|[1-9]{1}p|[1-9]{1}t2g|[1-9]{1}d|[1-9]{1}f)')
@@ -757,7 +757,6 @@ class FirstFrame(OwnFrame):
 
     def _verifyValidAtomData(self) -> bool:
         # 如果验证通过，可以加入到列表中
-        verified = True
 
         v_name = super()._getDataFromInupt("v_name")
         v_noccu = super()._getDataFromInupt("v_noccu")  # int
@@ -765,14 +764,15 @@ class FirstFrame(OwnFrame):
 
         if v_name is None:
             self.informMsg("请输入规范格式的v_name")
-            verified = False
+            return False
         if v_noccu is None:
             self.informMsg("请输入规范格式的v_noccu")
-            verified = False
+            return False
         if v_soc is None:
             self.informMsg("请输入规范格式的v_soc")
+            return False
 
-        return verified
+        return True
 
     def _getAtomDataFromInput(self) -> AtomBasicData or None:
         # 这个获取的不是用来计算的，是用来保存的，所以一些参数只取initial
