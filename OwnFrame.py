@@ -181,7 +181,7 @@ class OwnFrame:
         for ele in widgets:
             item = cls._toComplexFromText(ele.text())
             if item == None:
-                item = 0
+                item = 0.0
             res.append(item)  # 可能得到None的元素，代表这个框没有输入，一些情况下没有输入默认为0，一些情况下有其他默认值
         return res
 

@@ -312,17 +312,17 @@ class FirstFrame(OwnFrame):
         arrange_matrix_on_box(v1_cfmt_box_layout, self.v1_cfmt_para_texts)
         self.v1_cfmt_box.setLayout(v1_cfmt_box_layout)
         # 添加更新按钮
-        v1_cfmt_menu = QMenu(self.v1_cfmt_box)
+        # v1_cfmt_menu = QMenu(self.v1_cfmt_box)
         self.v1_cfmt_box.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
 
-        def cfmt_and_othermat_update_action():
-            # TODO:update dimension of matrix
-            self.informMsg("not implemented yet")
-
-        self.v1_cfmt_menu_update_action = QAction(v1_cfmt_menu)
-        self.v1_cfmt_menu_update_action.triggered.connect(cfmt_and_othermat_update_action)
-        v1_cfmt_menu.addAction(self.v1_cfmt_menu_update_action)
-        self.v1_cfmt_box.customContextMenuRequested.connect(lambda: v1_cfmt_menu.exec_(QtGui.QCursor.pos()))
+        # def cfmt_and_othermat_update_action():
+        #     # TODO:update dimension of matrix
+        #     self.informMsg("not implemented yet")
+        #
+        # self.v1_cfmt_menu_update_action = QAction(v1_cfmt_menu)
+        # self.v1_cfmt_menu_update_action.triggered.connect(cfmt_and_othermat_update_action)
+        # v1_cfmt_menu.addAction(self.v1_cfmt_menu_update_action)
+        # self.v1_cfmt_box.customContextMenuRequested.connect(lambda: v1_cfmt_menu.exec_(QtGui.QCursor.pos()))
 
         # othermat在格式上和cfmt保持一致
         self.v1_othermat_box = QGroupBox(self.frame)
@@ -335,13 +335,13 @@ class FirstFrame(OwnFrame):
         arrange_matrix_on_box(v1_othermat_box_layout, self.v1_othermat_para_texts)
         self.v1_othermat_box.setLayout(v1_othermat_box_layout)
         # 添加更新按钮
-        v1_othermat_menu = QMenu(self.v1_othermat_box)
+        # v1_othermat_menu = QMenu(self.v1_othermat_box)
         self.v1_othermat_box.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
 
-        self.v1_othermat_menu_update_action = QAction(v1_othermat_menu)
-        self.v1_othermat_menu_update_action.triggered.connect(cfmt_and_othermat_update_action)  # 这个可以复用，其实这两个矩阵应该同步更新
-        v1_othermat_menu.addAction(self.v1_othermat_menu_update_action)
-        self.v1_othermat_box.customContextMenuRequested.connect(lambda: v1_othermat_menu.exec_(QtGui.QCursor.pos()))
+        # self.v1_othermat_menu_update_action = QAction(v1_othermat_menu)
+        # self.v1_othermat_menu_update_action.triggered.connect(cfmt_and_othermat_update_action)  # 这个可以复用，其实这两个矩阵应该同步更新
+        # v1_othermat_menu.addAction(self.v1_othermat_menu_update_action)
+        # self.v1_othermat_box.customContextMenuRequested.connect(lambda: v1_othermat_menu.exec_(QtGui.QCursor.pos()))
 
         self.local_axis_box = QGroupBox(self.frame)
         # 3*3的矩阵
@@ -527,8 +527,8 @@ class FirstFrame(OwnFrame):
         self.v1_on_which_text.setPlaceholderText(
             _translate("FirstFrame_v1_on_which_text_sample", "例:spin"))
 
-        self.v1_cfmt_menu_update_action.setToolTip(
-            _translate("FirstFrame_v1_cfmt_update_action_tip", "更新矩阵维度"))
+        # self.v1_cfmt_menu_update_action.setToolTip(
+        #     _translate("FirstFrame_v1_cfmt_update_action_tip", "更新矩阵维度"))
 
         for row in self.v1_cfmt_para_texts:  # 这只是初始化，后续如果更新矩阵的话要重新设置一遍
             for lineEdit in row:
@@ -625,12 +625,12 @@ class FirstFrame(OwnFrame):
 
         self.v1_cfmt_box.setTitle(
             _translate("FirstFrame_v1_cfmt_box_title", "v_cfmt"))
-        self.v1_cfmt_menu_update_action.setText(
-            _translate("FirstFrame_v1_cfmt_update_action_name", "update"))
+        # self.v1_cfmt_menu_update_action.setText(
+        #     _translate("FirstFrame_v1_cfmt_update_action_name", "update"))
         self.v1_othermat_box.setTitle(
             _translate("FirstFrame_v1_othermat_box_title", "v_othermat"))
-        self.v1_othermat_menu_update_action.setText(
-            _translate("FirstFrame_v1_othermat_update_action_name", "update"))
+        # self.v1_othermat_menu_update_action.setText(
+        #     _translate("FirstFrame_v1_othermat_update_action_name", "update"))
 
         self.local_axis_box.setTitle(
             _translate("FirstFrame_local_axis_box_title", "local_axis"))
@@ -1049,7 +1049,7 @@ class FirstFrame(OwnFrame):
 
     # 生成self.eval_i/eval_n/trans_op/...
     def _handleOnEdCalculation(self):
-        if self.ed_combo.currentText() == "ed_1v1c_py":
+        if self.ed_combo.currentText() == "ed_1v1c_python":
             v_name = super()._getDataFromInupt("v_name")
             if v_name is None or len(v_name) == 0:
                 self.informMsg("请输入v_name")
@@ -1115,15 +1115,22 @@ class FirstFrame(OwnFrame):
 
             verbose = super()._getDataFromInupt("verbose")
 
-            self.eval_i, self.eval_n, self.trans_op = ed_1v1c_py(shell_name=shell_name, shell_level=shell_level,
-                           v_soc=v_soc, c_soc=c_soc, v_noccu=v_noccu, slater=slater, ext_B=ext_B, on_which=on_which,
-                           v_cfmat=v_cmft, v_othermat=v_othermat, loc_axis=local_axis, verbose=verbose)
+            self.eval_i_present, self.eval_n_present, self.trans_op_present = ed_1v1c_py(shell_name=shell_name,
+                                                                                         shell_level=shell_level,
+                                                                                         v_soc=v_soc, c_soc=c_soc,
+                                                                                         v_noccu=v_noccu, slater=slater,
+                                                                                         ext_B=ext_B, on_which=on_which,
+                                                                                         v_cfmat=v_cmft,
+                                                                                         v_othermat=v_othermat,
+                                                                                         loc_axis=local_axis,
+                                                                                         verbose=verbose)
+            print(self.eval_i_present)
             return True
 
-        if self.ed_combo.currentText() == "ed_1v1c_fort":
+        if self.ed_combo.currentText() == "ed_1v1c_fortan":
             self.informMsg("not implemented yet")
             return False
-        if self.ed_combo.currentText() == "ed_2v1c_fort":
+        if self.ed_combo.currentText() == "ed_2v1c_fortan":
             self.informMsg("not implemented yet")
             return False
 

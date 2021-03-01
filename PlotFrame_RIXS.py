@@ -206,9 +206,7 @@ class PlotFrame_RIXS:
         # 之后就根据这个name去数据中找相应的数据
         return item
 
-    # 数据的传递,两种方式:文件(Load按钮调用的函数)和从secondframe中传递过来
-    def _handleOn_LoadFile(self):  # 文件可能存放的是spectraBasicData也可能只存放了spectra data相关信息
-        # 打开文件
+    def _handleOn_LoadFile(self):  # 存放spectraBasicData的json文件
         fileName, fileType = QFileDialog.getOpenFileName(self.main_frame, r'Load json',
                                                          r'D:\Users\yg\PycharmProjects\spectra_data',
                                                          r'json Files(*.json)')  # 打开程序文件所在目录是将路径换为.即可
@@ -226,8 +224,6 @@ class PlotFrame_RIXS:
         which = self.combo.currentText()
         try:
             if which in temp["spectra"].keys():
-                # 经过以上操作确定打开的是正确的文件
-                # 读取数据
                 data = [temp['poltype'], temp['ominc'], temp['eloss'], temp['spectra'][which]]
                 name = temp['name'] + '_' + which
                 self.AddToListByName(name, which, data)
@@ -238,15 +234,11 @@ class PlotFrame_RIXS:
 
     # 用来获取从SecondFrame中传递过来的数据
     def _LoadFromSecondFrame(self, which, spectraData: SpectraBasicData):
-        # 首先判断数据是否是xas的数据
         name = spectraData.name + '_' + which
         data = [spectraData.poltype, spectraData.ominc, spectraData.eloss, spectraData.spectra[which]]
-        # 传入的数据已经经过检验,因此可以直接使用
         self.AddToListByName(name, which, data)
 
     def AddToListByName(self, name, which, data):
-        # 查重,读入
-        # 遍历data_QList看有没有同名的，有的话先删除
         row = 0
         while row < self.data_QList.count():
             if self.data_QList.item(row).text() == name:
@@ -254,18 +246,16 @@ class PlotFrame_RIXS:
             row += 1
         if row != self.data_QList.count():
             reply = self.questionMsg("已经存在同名的数据类,是否进行覆盖？")
-            if reply == False:  # 不删除旧的,不换成新的
+            if reply == False:
                 return
             else:
                 self.data_QList.takeItem(row)
 
-        # 创建一个新的item
         item = self._getItemFromName(self.data_QList, name)
         self.data_QList.addItem(item)
         self.data_QList.sortItems()
-        self.data_QList.setCurrentItem(item)  # 排过序之后可能不是原先的位置了，重新设置一下
+        self.data_QList.setCurrentItem(item)
 
-        # 对数据也进行保存
         poltype = data['poltype']
         ominc_mesh = data['ominc']
         ominc_mesh = np.array(ominc_mesh)
@@ -312,13 +302,13 @@ class PlotFrame_RIXS:
         m,n = np.array(rixs_data).shape
         if len(ominc_mesh) == m and len(eloss_mesh) == n:
             rixs_data = np.array(rixs_data).T
-            self.plt_collections[self.name_present], = self.axes_origin.imshow(rixs_data, extend=axis, origin='lower',
-                                                                aspect='auto', cmap='rainbow', interpolation='gaussian')
+            self.axes_origin.imshow(rixs_data, extend=axis, origin='lower',aspect='auto', cmap='rainbow',
+                                    interpolation='gaussian')
             self.axes_origin.xlabel(r'Energy of incident photon(eV)')
             self.axes_origin.ylabel(r'Energy loss(eV)')
         if len(ominc_mesh) == n and len(eloss_mesh) == m:
-            self.plt_collections[self.name_present], = self.axes_origin.imshow(rixs_data, extend=axis, origin='lower',
-                                                                aspect='auto', cmap='rainbow', interpolation='gaussian')
+            self.axes_origin.imshow(rixs_data, extend=axis, origin='lower',aspect='auto', cmap='rainbow',
+                                    interpolation='gaussian')
             self.axes_origin.xlabel(r'Energy of incident photon(eV)')
             self.axes_origin.ylabel(r'Energy loss(eV)')
         else:
@@ -337,11 +327,8 @@ class PlotFrame_RIXS:
 
     def _handleOnDeleteDataFromDataList(self):  # 图像连同数据全部销毁
         # 如果该函数被调用,则一定是选中对象了,这说明List中至少有一个item
-        name = self.data_QList.currentItem()
-        if name in self.plt_collections.keys():
-            del self.plt_collections[name]  # del直接删去键值对
-        del self.datalist[name]
-        return
+        self.axes_origin.clear()
+        self.axes_origin.grid(self.grid_check_box.isChecked())
 
     def _handleOnHideFigureFromDataList(self):  # 仅销毁图像保留数据
         # 如果该函数被调用,则一定是选中对象了,这说明List中至少有一个item
