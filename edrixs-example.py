@@ -7,8 +7,8 @@ from edrixs.soc import *
 from edrixs.solvers import *
 from edrixs.utils import *
 from edrixs.angular_momentum import *
-from edrixs.basis_transform import *
 from edrixs.coulomb_utensor import *
+from edrixs.basis_transform import *
 from edrixs.fit_hyb import *
 from edrixs.fock_basis import *
 from edrixs.iostream import *

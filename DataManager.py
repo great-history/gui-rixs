@@ -4,6 +4,7 @@ import re
 # 基本数据，保存slater,soc这些
 class AtomBasicData:
     def __init__(self,
+                 atom_name=None,
                  v_name=None,
                  v_noccu=None,
                  c_name=None,
@@ -26,6 +27,7 @@ class AtomBasicData:
                  v_othermat=None,
                  local_axis=None,
                  ed=None):
+        self.atom_name = atom_name if atom_name is not None else ""
         self.v_name = v_name if v_name is not None else ""  # str
         self.v_noccu = v_noccu  # int
         self.c_name = c_name if c_name is not None else ""  # str
@@ -38,27 +40,29 @@ class AtomBasicData:
         self.slater_Fx_vc_intermediate = slater_Fx_vc_intermediate if slater_Fx_vc_intermediate is not None else []  # list of float
         self.slater_Gx_vc_intermediate = slater_Gx_vc_intermediate if slater_Gx_vc_intermediate is not None else []  # list of float
         self.slater_Fx_cc_intermediate = slater_Fx_cc_intermediate if slater_Fx_cc_intermediate is not None else []  # list of float
-        self.v_soc = v_soc  # float-float
-        self.c_soc = c_soc  # float
-        self.shell_level_v = shell_level_v  # float-float
-        self.shell_level_c = shell_level_c  # float
-        self.v1_ext_B = v1_ext_B  # float
-        self.v1_on_which = v1_on_which  # float
-        self.v_cmft = v_cmft  # float
-        self.v_othermat = v_othermat  # float
-        self.local_axis = local_axis  # float
-        self.ed = ed  if ed is not None else {} # float
+        self.v_soc = v_soc if v_soc is not None else [0.0, 0.0]# float-float
+        self.c_soc = c_soc if c_soc is not None else 0.0# float
+        self.shell_level_v = shell_level_v if shell_level_v is not None else 0.0 # float-float
+        self.shell_level_c = shell_level_c if shell_level_c is not None else 0.0# float
+        self.v1_ext_B = v1_ext_B  if v1_ext_B is not None else [0, 0, 0]# float
+        self.v1_on_which = v1_on_which if v1_on_which is not None else "spin" # float
+        self.v_cmft = v_cmft if v_cmft is not None else [[]] # float
+        self.v_othermat = v_othermat if v_othermat is not None else [[]] # float
+        self.local_axis = local_axis if local_axis is not None else [[1,0,0],[0,1,0],[0,0,1]]# float
+        self.ed = ed  if ed is not None else {"eval_i":[],"eval_n":[],"trans_op":[[]],"gs_list":[0]} # float
+
 
 class DataManager_atom:
     def __init__(self):
         # 存放一组AtomBasicData，也就是放在列表里的实际数据，用v_name+v_noccu+'_'+c_name+c_noccu作为key
         self.atomBasicDataList = {}
-        self.currentAtomBasicData = {}
 
     def getNameFromAtomData(atomData: AtomBasicData) -> str:
+        if atomData.atom_name is None or len(atomData.atom_name) == 0:
+            return ""
         if atomData.v_name is None or len(atomData.v_name) == 0:
             return ""
-        name = atomData.v_name
+        name = atomData.atom_name + "_" + atomData.v_name
         if atomData.v_noccu is not None:
             name = name + str(atomData.v_noccu)
         if len(atomData.c_name) > 0:
@@ -66,6 +70,10 @@ class DataManager_atom:
             if atomData.c_noccu is not None:
                 name = name + str(atomData.c_noccu)
         return name
+
+    def getAtomNameByName(name:str) -> str:
+        str_list = name.split("_")
+        return str_list[0]
 
     def addAtomData(self, atomData: AtomBasicData) -> bool:
         dictKey = DataManager_atom.getNameFromAtomData(atomData)
@@ -141,4 +149,5 @@ class DataManager_spectra:
 
 
 if __name__ == "__main__":
-    pass
+    atomdata = AtomBasicData()
+    print(atomdata.__dict__)

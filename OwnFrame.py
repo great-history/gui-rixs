@@ -54,7 +54,7 @@ class OwnFrame:
         cls.floatListRegxValidator = QtGui.QRegExpValidator(floatListRegx)
 
         floatlistRegx = QtCore.QRegExp(
-            r"^(?!:)(((\-?(?!0)\d*\.?\d*)|(\-?(0\.)\d*)|0):(?!;))*((\-?(?!0)\d*\.?\d*)|(\-?(0\.)\d*)|0)")
+            r"^(?!:)(((\-?(?!0)\d*\.?\d*)|(\-?(0\.)\d*)|0):(?!:))*((\-?(?!0)\d*\.?\d*)|(\-?(0\.)\d*)|0)")
         cls.floatlistRegxValidator = QtGui.QRegExpValidator(floatlistRegx)  # floatlist与floatList不同,一个是用:分隔,一个是用;分隔
 
         # 两个浮点数，float-float
@@ -62,17 +62,27 @@ class OwnFrame:
             r"^(?!;)(((\-?(?!0)\d*\.?\d*)|(\-?(0\.)\d*)|0);(?!;))?((\-?(?!0)\d*\.?\d*)|(\-?(0\.)\d*)|0)")
         cls.twoFloatRegxValidator = QtGui.QRegExpValidator(twoFloatRegx)
 
-        # 复数的'\-?\d+\.?\d+[(\-|\+)]{1}\d+\.?\d+[j]'怎么写出更好的复数正则表达式？？
-        complexRegx = QtCore.QRegExp('\-?\d+\.?\d+[(\-|\+)]{1}\d+\.?\d+[j]')
+        # to do list:怎么写出更好的复数正则表达式？？主要问题在于实部和虚部都有的复数,纯虚数和纯实数比较容易,以下有三个版本
+        # complexRegx = QtCore.QRegExp(r'(\-?\d+\.?\d+[(\-|\+)]{1}\d+\.?\d+[j])|'
+        #                              r'(((^(?!0)\-?\d*\.?\d*)|(^\-?(0\.)\d*)|0)[j])|'
+        #                              r'((^(?!0)\-?\d*\.?\d*)|(^\-?(0\.)\d*)|0)')
+        # complexRegx = QtCore.QRegExp(r"(((^(?!0)\-?\d*\.?\d*)|(^\-?(0\.)\d*)|0)(\-|\+)((^(?!0)\d*\.?\d*)|((0\.)\d*)|0))[j]|"
+        #                              r"(((^(?!0)\-?\d*\.?\d*)|(^\-?(0\.)\d*)|0)[j])|"
+        #                              r"((^(?!0)\-?\d*\.?\d*)|(^\-?(0\.)\d*)|0)")  实数和纯虚数没问题,复数输入时虚部只能为0.xxxj
+        complexRegx = QtCore.QRegExp(r"(((^(?!0)\-?\d*\.?\d*)|(^\-?(0\.)\d*)|0)(\-|\+)[\d]+\.?[\d]+)[j]|"
+                                     r"(((^(?!0)\-?\d*\.?\d*)|(^\-?(0\.)\d*)|0)[j])|"
+                                     r"((^(?!0)\-?\d*\.?\d*)|(^\-?(0\.)\d*)|0)")
         cls.complexRegxValidator = QtGui.QRegExpValidator(complexRegx)
 
+    # 将用户输入的字符串转换为相应的数据格式
+    # 转换为复数或实数或整数的必须返回该数据格式,不要返回None,因为在后面计算时可能会出错
     @classmethod
-    def _toSimpleStrFromText(cls, text: str or QLineEdit) -> str or None:
+    def _toSimpleStrFromText(cls, text: str or QLineEdit) -> str:
         if text == None:
-            return None
+            return ""
         if type(text) is not str:
             text = text.text()
-        return None if len(text) == 0 else text
+        return "" if len(text) == 0 else text
 
     @classmethod
     def _toIntFromText(cls, text: str or QLineEdit) -> int or None:
@@ -88,95 +98,96 @@ class OwnFrame:
         return res
 
     @classmethod
-    def _toFloatFromText(cls, text: str or QLineEdit) -> float or None:
+    def _toFloatFromText(cls, text: str or QLineEdit) -> float:
+        # 数据格式错误的情形(可能有遗漏):None/""/"."
         if text == None:
-            return None
+            return 0.0
         if type(text) is not str:
             text = text.text()
         try:
-            res = None if len(text) == 0 else (0.0 if text == "." else float(text))
+            res = 0.0 if len(text) == 0 else (0.0 if text == "." else float(text))
         except ValueError:
-            cls.informMsg("数据格式有错误:on to float")
-            res = None
+            cls.informMsg("数据格式有错误:on to float,已架设为0.0")
+            res = 0.0
         return res
 
     @classmethod
-    def _toComplexFromText(cls, text: str or QLineEdit) -> float or None:
+    def _toComplexFromText(cls, text: str or QLineEdit) -> complex:
+        # 格式错误的几种情况(可能有遗漏):None/""/"."/".+x.xj"
         if text == None:
-            return None
+            return 0j
         if type(text) is not str:
             text = text.text()
+        if len(text) == 0:
+            return 0j
+        if text == ".":
+            return 0j
         try:
-            res = None if len(text) == 0 else (0.0 if text == "." else complex(text))
+            res = complex(text)  # 若text中含有空格, 则无法转换为复数, 例如1+ 0.123j,但我们已经用正则表达式进行了限制
         except ValueError:
-            cls.informMsg("数据格式有错误:on to float")
-            res = None
+            cls.informMsg("数据格式有错误:on to complex,已假定为0.0")
+            res = 0j
         return res
 
     @classmethod
     def _toFloatListByStrFromText(cls, text: str or QLineEdit) -> list or None:
+        # 用于Fx_vv这一类参数和v_soc这一类参数
         if text is None:
             return None
         if type(text) is not str:
             text = text.text()
         if len(text) > 0:
-            str_list = text.split(";")
+            str_list = text.split(";") # 如果text的最后一个字符是";",那么str_list的最后一个元素是空字符串""
             res = []
-            for ele in str_list:
-                if len(ele) > 0:
-                    temp = cls._toFloatFromText(ele)
-                    if temp is None:
-                        cls.informMsg("数据格式有错误,可能是因为:号后面没有直接相邻的数据")
-                        res = None
-                        break
-                    res.append(temp)
+            for ele in str_list:  # ele有可能为空字符串""
+                temp = cls._toFloatFromText(ele)
+                res.append(temp)
         else:
             res = None
         return res
 
     @classmethod
-    def _toFloatlistByStrFromText(cls, text: str or QLineEdit) -> list or None:
+    # 得到等差数列
+    def _tofloatlistByStrFromText(cls, text: str or QLineEdit) -> list or None:
         if text == None:
-            cls.informMsg("无获取数据")
             return None
         if type(text) is not str:
             text = text.text()
         str_list = text.split(":")
         float_list = []
-        for item in str_list:
-            float_list.append(float(item))
         if len(str_list) == 3:
-            def _tofloatarrayFromfloatlist(float_list):
-                head = float_list[0]
-                end = float_list[1]
-                step = float_list[2]
-                N = int(np.floor((end - head) / step))
-                if N < 0:
-                    cls.informMsg("数据格式有问题")
-                    return None
-                float_array = [head]
-                for i in range(N):
-                    float_array.append(head + (i + 1) * step)
-                return float_array
-            float_array = _tofloatarrayFromfloatlist(float_list)
+            for ele in str_list:
+                float_list.append(cls._toFloatFromText(ele))
+
+            float_array = cls._tofloatarrayFromfloatlist(float_list)
             res = float_array
         else:
-            cls.informMsg("数据格式有问题")
             res = None
         return res
 
+    def _tofloatarrayFromfloatlist(cls, float_list:list):
+        head = float_list[0]
+        end = float_list[1]
+        step = float_list[2]
+        N = int(np.floor((end - head) / step))
+        if N < 0:
+            cls.informMsg("数据格式有问题:无法构成等差数列")
+            return None
+        float_array = [head]
+        for i in range(N):
+            float_array.append(head + (i + 1) * step)
+        return float_array
+
     @classmethod
-    def _toFloatListByWidgets_1DFromText(cls, widgets: list) -> list or None:
+    def _toFloatListByWidgets_1DFromText(cls, widgets: list) -> list:
         res = []
         for ele in widgets:
             item = cls._toFloatFromText(ele.text())
-            if item == None:
-                item =0
             res.append(item)  # 可能得到None的元素，代表这个框没有输入，一些情况下没有输入默认为0，一些情况下有其他默认值
         return res
 
     @classmethod
-    def _toComplexListByWidgets_1DFromText(cls, widgets: list) -> list or None:
+    def _toComplexListByWidgets_1DFromText(cls, widgets: list) -> list:
         res = []
         for ele in widgets:
             item = cls._toComplexFromText(ele.text())
@@ -186,43 +197,30 @@ class OwnFrame:
         return res
 
     @classmethod
-    def _toFloatListByWidgets_2DFromText(cls, widgets: [[]]) -> [[]] or None:
+    def _toFloatListByWidgets_2DFromText(cls, widgets: [[]]) -> [[]]:
         res = []
-        allNone = True
         for ele in widgets:
             temp = cls._toFloatListByWidgets_1DFromText(ele)
-            if temp is not None:
-                allNone = False
             res.append(temp)
-        if allNone == False:
-            cls.informMsg("请填满所有的空格")
-        return None if allNone else res
+        return res
 
     @classmethod
-    def _toComplexListByWidgets_2DFromText(cls, widgets: [[]]) -> [[]] or None:
+    def _toComplexListByWidgets_2DFromText(cls, widgets: [[]]) -> [[]]:
         res = []
-        allNone = True
         for ele in widgets:
             temp = cls._toComplexListByWidgets_1DFromText(ele)
-            if temp is not None:
-                allNone = False
             res.append(temp)
-        if allNone == False:
-            cls.informMsg("请填满所有的空格")
-        return None if allNone else res
+        return res
 
     def _setupDataInWidgets(self):
-        # 在各个页面都设置好之后调用这个
-        # 把各个需要获取输入的控件(或其上数据)加入字典中，同时指定解析方式
-        # 方便之后从界面获取输入
+        # 在各个页面都设置好之后调用这个,把各个需要获取输入的控件(或其上数据)加入字典中，同时指定解析方式,方便之后从界面获取输入
         self.widgetsWithData = {}  # key是代表名字的str，value是一个元组(widget, method to parse)
 
     def _bindDataWithWidgets(self, name: str, widget, parser):
         self.widgetsWithData[name] = (widget, parser)
 
     def _getDataFromInupt(self, dataName: str):
-        # 根据数据名从界面相应组件获取数据
-        # 用个字典来存下各个组件吧
+        # 根据数据名从界面相应组件获取数据，用个字典来存下各个组件吧
         if dataName not in self.widgetsWithData.keys():
             self.informMsg(f"从widgetsWithData中获取数据时出错，错误的数据名:{dataName}")
             return None

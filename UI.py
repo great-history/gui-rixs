@@ -23,7 +23,7 @@ class OwnApplication:
         self.mainWindow.setMinimumHeight(720)
         self.mainWindow.setFixedWidth(1280)
 
-        self.frames.append(FirstFrame(parent=None, width=1280, height=840))
+        self.frames.append(FirstFrame(parent= None, width=1280, height=840))
         self.frames.append(SecondFrame(parent = None, width=1280, height=840))
         # self.frames.append(FirstFrame(self.mainWindow, width=1280, height=720))
         # self.frames.append(SecondFrame(self.mainWindow, width=1280, height=720))
@@ -135,13 +135,13 @@ class OwnApplication:
             self.informMsg("已经是最后一页了")
             return
 
-        if self.frames[self.curFrameIndex]._verifyValidAtomData() == False:
+        if self.frames[self.curFrameIndex]._verifyValid_and_getAtomDataFromInput() == None:
             if self.questionMsg("数据不完整,是否继续跳到下一页？？") == False:
                 return
 
-        if self.frames[self.curFrameIndex].eval_i_present == None or \
-                self.frames[self.curFrameIndex].eval_n_present == None or \
-                self.frames[self.curFrameIndex].trans_op == None:
+        if self.frames[self.curFrameIndex].eval_i_present == [] or \
+                self.frames[self.curFrameIndex].eval_n_present == [] or \
+                self.frames[self.curFrameIndex].trans_op == [[]]:
             if self.questionMsg("尚未进行精确对角化,是否仍要继续跳到下一页？？") == False:
                 return
 
@@ -183,7 +183,6 @@ class OwnApplication:
         if reply == QMessageBox.No:
             return False
         msgBox.exec_()  # 模态
-
 
 
 if __name__ == '__main__':
