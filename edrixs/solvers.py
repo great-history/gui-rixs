@@ -1,7 +1,7 @@
 __all__ = ['ed_1v1c_py', 'xas_1v1c_py', 'rixs_1v1c_py']
 
 import numpy as np
-import scipy
+from scipy import linalg
 
 from .iostream import (
     write_tensor, write_emat, write_umat, write_config, read_poles_from_file
@@ -156,8 +156,12 @@ def ed_1v1c_py(shell_name, *, shell_level=None, v_soc=None, c_soc=0,
 
     # Do exact-diagonalization to get eigenvalues and eigenvectors
     print("edrixs >>> Exact Diagonalization of Hamiltonians ...")
-    eval_i, evec_i = scipy.linalg.eigh(hmat_i)
-    eval_n, evec_n = scipy.linalg.eigh(hmat_n)
+    print(hmat_i)
+    print(hmat_n)
+    print(type(hmat_i))
+    eval_i, evec_i = linalg.eigh(hmat_i)
+    print("whose problem")
+    eval_n, evec_n = linalg.eigh(hmat_n)
     print("edrixs >>> Done !")
 
     if verbose > 0:

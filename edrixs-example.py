@@ -46,7 +46,7 @@ zeta_d_n = res['v_soc_n'][0]  # valence 3d electron with core-hole
 # E_{L2} - E_{L3} = 1.5 * zeta_p
 zeta_p_n = (res['edge_ene'][0] - res['edge_ene'][1]) / 1.5  # core 2p electron
 
-# Tetragonal crystal field
+# Tetragonal crystal field2
 cf = cf_tetragonal_d(ten_dq=1.3, d1=0.05, d3=0.2)
 
 # Level shift of the core shell

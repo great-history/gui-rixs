@@ -158,20 +158,22 @@ class OwnFrame:
         if len(str_list) == 3:
             for ele in str_list:
                 float_list.append(cls._toFloatFromText(ele))
-
             float_array = cls._tofloatarrayFromfloatlist(float_list)
+            if float_array == None:
+                cls.informMsg("无法形成等差数列")
+                return None
             res = float_array
         else:
+            cls.informMsg("数据格式有问题:请输入三个浮点数")
             res = None
         return res
 
-    def _tofloatarrayFromfloatlist(cls, float_list:list):
+    def _tofloatarrayFromfloatlist(float_list:list):  # 用cls._tofloatarrayFromfloatlist来调用
         head = float_list[0]
         end = float_list[1]
         step = float_list[2]
         N = int(np.floor((end - head) / step))
         if N < 0:
-            cls.informMsg("数据格式有问题:无法构成等差数列")
             return None
         float_array = [head]
         for i in range(N):

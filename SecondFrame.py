@@ -20,18 +20,13 @@ from edrixs.plot_spectrum import *
 
 
 class SecondFrame(OwnFrame):
-    def __init__(self, parent=None, width=None, height=None): # parent来自于OwnApplication
+    def __init__(self, parent=None, width=1280, height=840): # parent来自于OwnApplication
         OwnFrame.__init__(self, parent, width, height) # 获得父类中的实例变量
         self.frame = super().getFrame()
         self.frame.setFrameStyle(QFrame.Panel | QFrame.Sunken)
         # self.frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
         self.frame.setMinimumHeight(height - 20)
         self.frame.setMinimumWidth(width - 36)
-        self.plotframes_xas = []
-        self.num_of_plotframe_xas = 0
-        self.plotframes_rixs = []
-        self.num_of_plotframe_rixs = 0
-
         self._setupDataVariable()
         self._arrangeUI()
         self._retranslateAll()
@@ -41,20 +36,15 @@ class SecondFrame(OwnFrame):
 
     def _setupDataVariable(self):
         self.dataManager_spectra = DataManager_spectra()
-        self.eval_i_fromFirstFrame = None
-        self.eval_n_fromFirstFrame = None
-        self.trans_op_fromFirstFrame = None
-        self.gs_list_fromFirstFrame = None
-
-        self.eval_i_present = None
-        self.eval_n_present = None
-        self.trans_op_present = None
-        self.gs_list_present = None  # 这几个用来存放第一个页面计算的结果或者load的结果
+        self.atomdata_present = None
         self.spectra_name_present = None
-        self.spectra_data_present = None
+        # 下面三个是作图时要用的
+        self.spectra_data_present = {}
+        self.ominc_present = []
+        self.eloss_present = []
 
-        self.SpectraDataKeys = ["name", "poltype", "thin", "thout", "phi", "ominc", "eloss", "gamma_c", "gamma_f",
-                                "scattering_axis", "eval_i", "eval_n", "trans_op", "gs_list", "temperature", "spectra"]
+        self.SpectraDataKeys = ["atomdata", "poltype", "thin", "thout", "phi", "ominc", "eloss", "scattering_axis",
+                                "eval_i", "eval_n", "trans_op", "gs_list", "temperature", "spectra"]
 
     def getFrame(self):  # 属于SecondFrame的getFrame,父类OwnFrame中也含有一个getFrame
         return self.scrollForSecondFrame
@@ -63,260 +53,302 @@ class SecondFrame(OwnFrame):
     def _arrangeUI(self):
 
         needToSaveStyleSheet = 'color:rgb(160,60,60)'
-        #控件组合模板:self.boxSpectraPara electron_lifetime_box
-        self.boxSpectraPara = QGroupBox(self.frame)
+        if "boxSpectraPara":
+            self.boxSpectraPara = QGroupBox(self.frame)
+            self.boxSpectraPara.setFixedSize(950, 605)
 
-        self.spectra_name_label = QLabel(self.boxSpectraPara)
-        self.spectra_name_label.setFixedHeight(32)
-        self.spectra_name_label.setAlignment(QtCore.Qt.AlignCenter)
+            self.rixs_check_box = QCheckBox("rixs", self.boxSpectraPara)
+            self.rixs_check_box.setFixedSize(100,32)
+            self.rixs_check_box.setChecked(True)
+            self.rixs_check_box.stateChanged.connect(self._handleOnCheckChanged_rixs)
 
-        self.spectra_name_text = QLineEdit(self.boxSpectraPara)
-        self.spectra_name_text.setFixedSize(200, 32)
-        self.spectra_name_text.setAlignment(QtCore.Qt.AlignCenter)
+            self.xas_check_box = QCheckBox("xas", self.boxSpectraPara)
+            self.xas_check_box.setFixedSize(100,32)
+            self.xas_check_box.setChecked(False)
+            self.xas_check_box.stateChanged.connect(self._handleOnCheckChanged_xas)
 
-        self.poltype_label = QLabel(self.boxSpectraPara)
-        self.poltype_label.setAlignment(QtCore.Qt.AlignCenter)
-        # self.poltype_label.setStyleSheet(needToSaveStyleSheet)
-        self.poltype_label.setFixedHeight(32)
+            self.poltype_label = QLabel(self.boxSpectraPara)
+            self.poltype_label.setAlignment(QtCore.Qt.AlignCenter)
+            self.poltype_label.setFixedSize(145,32)
 
-        self.poltype_text = QLineEdit(self.boxSpectraPara)  # str
-        # self.poltype_text.setStyleSheet(needToSaveStyleSheet)
-        self.poltype_text.setFixedSize(275, 32)
+            self.combo_in = QComboBox(self.boxSpectraPara)
+            self.combo_in.addItem("linear")  # 当选用某些频道但没有实现进行精确对角化则会报错,让用户先去进行相应的精确对角化
+            self.combo_in.addItem("left")
+            self.combo_in.addItem("right")
+            self.combo_in.addItem("isotropic")
+            self.combo_in.setCurrentText("linear")
+            self.combo_in.setFixedSize(125, 32)
+            self.alpha_label = QLabel(self.boxSpectraPara)
+            self.alpha_label.setAlignment(QtCore.Qt.AlignCenter)
+            self.alpha_label.setFixedSize(80,32)
+            self.alpha_text = QLineEdit(self.boxSpectraPara)  # str
+            self.alpha_text.setFixedSize(62, 32)
+            self.combo_out = QComboBox(self.boxSpectraPara)
+            self.combo_out.addItem("linear")  # 当选用某些频道但没有实现进行精确对角化则会报错,让用户先去进行相应的精确对角化
+            self.combo_out.addItem("left")
+            self.combo_out.addItem("right")
+            self.combo_out.addItem("isotropic")
+            self.combo_out.setCurrentText("linear")
+            self.combo_out.setFixedSize(125, 32)
+            self.beta_label = QLabel(self.boxSpectraPara)
+            self.beta_label.setAlignment(QtCore.Qt.AlignCenter)
+            self.beta_label.setFixedSize(80,32)
+            self.beta_text = QLineEdit(self.boxSpectraPara)  # str
+            self.beta_text.setFixedSize(62, 32)
 
-        self.thin_label = QLabel(self.boxSpectraPara)
-        self.thin_label.setAlignment(QtCore.Qt.AlignCenter)
-        # self.thin_label.setStyleSheet(needToSaveStyleSheet)
-        self.thin_label.setFixedHeight(32)
+            self.thin_label = QLabel(self.boxSpectraPara)
+            self.thin_label.setAlignment(QtCore.Qt.AlignCenter)
+            self.thin_label.setFixedSize(145,32)
 
-        self.thin_text = QLineEdit(self.boxSpectraPara)  # str
-        # self.thin_text.setStyleSheet(needToSaveStyleSheet)
-        self.thin_text.setFixedSize(62, 32)
+            self.thin_text = QLineEdit(self.boxSpectraPara)  # str
+            self.thin_text.setFixedSize(62, 32)
 
-        self.thout_label = QLabel(self.boxSpectraPara)
-        self.thout_label.setAlignment(QtCore.Qt.AlignCenter)
-        # self.thout_label.setStyleSheet(needToSaveStyleSheet)
-        self.thout_label.setFixedHeight(32)
+            self.thout_label = QLabel(self.boxSpectraPara)
+            self.thout_label.setAlignment(QtCore.Qt.AlignCenter)
+            self.thout_label.setFixedSize(145,32)
 
-        self.thout_text = QLineEdit(self.boxSpectraPara)  # str
-        # self.thout_text.setStyleSheet(needToSaveStyleSheet)
-        self.thout_text.setFixedSize(62, 32)
+            self.thout_text = QLineEdit(self.boxSpectraPara)  # str
+            self.thout_text.setFixedSize(62, 32)
 
-        self.phi_label = QLabel(self.boxSpectraPara)
-        self.phi_label.setAlignment(QtCore.Qt.AlignCenter)
-        # self.phi_label.setStyleSheet(needToSaveStyleSheet)
-        self.phi_label.setFixedHeight(32)
+            self.phi_label = QLabel(self.boxSpectraPara)
+            self.phi_label.setAlignment(QtCore.Qt.AlignCenter)
+            self.phi_label.setFixedHeight(32)
 
-        self.phi_text = QLineEdit(self.boxSpectraPara)  # str
-        # self.phi_text.setStyleSheet(needToSaveStyleSheet)
-        self.phi_text.setFixedSize(62, 32)
-                                 # ominc和eloss都允许用户有两种输入形式,一种是::另一种是;;
-        self.ominc_label = QLabel(self.boxSpectraPara)
-        self.ominc_label.setAlignment(QtCore.Qt.AlignCenter)
-        self.ominc_label.setStyleSheet(needToSaveStyleSheet)
-        self.ominc_label.setFixedHeight(32)
+            self.phi_text = QLineEdit(self.boxSpectraPara)  # str
+            self.phi_text.setFixedSize(62, 32)
 
-        self.ominc_text = QLineEdit(self.boxSpectraPara)  # str
-        self.ominc_text.setStyleSheet(needToSaveStyleSheet)
-        self.ominc_text.setFixedSize(126, 32)
+            self.photon_energy_ref_label = QLabel(self.boxSpectraPara)
+            self.photon_energy_ref_label.setFixedSize(750, 32)
 
-        self.eloss_label = QLabel(self.boxSpectraPara)
-        self.eloss_label.setAlignment(QtCore.Qt.AlignCenter)
-        self.eloss_label.setStyleSheet(needToSaveStyleSheet)
-        self.eloss_label.setFixedHeight(32)
+            self.ominc_label = QLabel(self.boxSpectraPara)
+            self.ominc_label.setAlignment(QtCore.Qt.AlignCenter)
+            self.ominc_label.setStyleSheet(needToSaveStyleSheet)
+            self.ominc_label.setFixedSize(145,32)
+            self.ominc_texts = [QLineEdit(self.boxSpectraPara),
+                                   QLineEdit(self.boxSpectraPara),
+                                   QLineEdit(self.boxSpectraPara)]
+            ominc_layout = QHBoxLayout()
+            ominc_layout.addWidget(self.ominc_label)
+            for text in self.ominc_texts:
+                text.setFixedSize(70, 32)
+                text.setStyleSheet(needToSaveStyleSheet)
+                ominc_layout.addWidget(text)
 
-        self.eloss_text = QLineEdit(self.boxSpectraPara)  # str
-        self.eloss_text.setStyleSheet(needToSaveStyleSheet)
-        self.eloss_text.setFixedSize(126, 32)
+            self.eloss_label = QLabel(self.boxSpectraPara)
+            self.eloss_label.setAlignment(QtCore.Qt.AlignCenter)
+            self.eloss_label.setStyleSheet(needToSaveStyleSheet)
+            self.eloss_label.setFixedSize(145,32)
+            self.eloss_texts = [QLineEdit(self.boxSpectraPara),
+                                QLineEdit(self.boxSpectraPara),
+                                QLineEdit(self.boxSpectraPara)]
+            eloss_layout = QHBoxLayout()
+            eloss_layout.addWidget(self.eloss_label)
+            for text in self.eloss_texts:
+                text.setFixedSize(70, 32)
+                text.setStyleSheet(needToSaveStyleSheet)
+                eloss_layout.addWidget(text)
 
-        self.buttonAddToSpectraList = QPushButton(self.boxSpectraPara)
-        self.buttonAddToSpectraList.setStyleSheet(needToSaveStyleSheet)
-        self.buttonAddToSpectraList.setFixedSize(126, 32)
-        self.buttonAddToSpectraList.clicked.connect(self._handleOnAddToSpectraList)
+            self.temperature_label = QLabel(self.boxSpectraPara)
+            self.temperature_label.setAlignment(QtCore.Qt.AlignCenter)
+            self.temperature_label.setFixedSize(126,32)
+            self.temperature_text = QLineEdit(self.boxSpectraPara)
+            self.temperature_text.setFixedSize(62, 32)
 
-        # 控件组合模板:electron_lifetime_box
-        self.lifetime_box = QGroupBox(self.frame)
-        self.gamma_c_label = QLabel(self.lifetime_box)
-        self.gamma_c_label.setAlignment(QtCore.Qt.AlignCenter)
-        # self.gamma_c_label.setStyleSheet(needToSaveStyleSheet)
-        self.gamma_c_label.setFixedHeight(32)
+            self.gamma_f_label = QLabel(self.boxSpectraPara)
+            self.gamma_f_label.setAlignment(QtCore.Qt.AlignCenter)
+            self.gamma_f_label.setFixedSize(126,32)
 
-        self.gamma_c_text = QLineEdit(self.lifetime_box)  # str
-        # self.gamma_c_text.setStyleSheet(needToSaveStyleSheet)
-        self.gamma_c_text.setFixedSize(126, 32)
+            self.gamma_f_text = QLineEdit(self.boxSpectraPara)
+            self.gamma_f_text.setFixedSize(62, 32)
 
-        self.gamma_f_label = QLabel(self.lifetime_box)
-        self.gamma_f_label.setAlignment(QtCore.Qt.AlignCenter)
-        # self.gamma_f_label.setStyleSheet(needToSaveStyleSheet)
-        self.gamma_f_label.setFixedHeight(32)
+            if "scattering_axis_box":
+                self.scattering_axis_box = QGroupBox(self.boxSpectraPara)
+                self.scattering_axis_box.setFixedSize(240,140)
+                # 3*3的矩阵
+                self.scattering_axis_texts = [[QLineEdit(self.scattering_axis_box) for _ in range(3)] for _ in range(3)]
+                for row in self.scattering_axis_texts:
+                    for LineEdit in row:
+                        LineEdit.setFixedSize(62, 32)
 
-        self.gamma_f_text = QLineEdit(self.lifetime_box)  # str
-        # self.gamma_f_text.setStyleSheet(needToSaveStyleSheet)
-        self.gamma_f_text.setFixedSize(126, 32)
+                scattering_axis_box_layout = QGridLayout(self.scattering_axis_box)
+                scattering_axis_box_layout.setAlignment(QtCore.Qt.AlignTop)
+                def arrange_matrix_on_box(grid_layout, widgets):
+                    for row_i in range(len(widgets)):
+                        one_row = widgets[row_i]
+                        for col_j in range(len(one_row)):
+                            grid_layout.addWidget(one_row[col_j], row_i, col_j, QtCore.Qt.AlignTop)
 
-        lifetime_box_Layout = QGridLayout(self.lifetime_box)
-        lifetime_box_Layout.setAlignment(QtCore.Qt.AlignTop)
-        lifetime_box_Layout.addWidget(self.gamma_c_label, 0, 0, QtCore.Qt.AlignTop)
-        lifetime_box_Layout.addWidget(self.gamma_c_text, 0, 1, QtCore.Qt.AlignTop)
-        lifetime_box_Layout.addWidget(self.gamma_f_label, 0, 2, QtCore.Qt.AlignTop)
-        lifetime_box_Layout.addWidget(self.gamma_f_text, 0, 3, QtCore.Qt.AlignTop)
+                arrange_matrix_on_box(scattering_axis_box_layout, self.scattering_axis_texts)
+                self.scattering_axis_box.setLayout(scattering_axis_box_layout)
 
-        self.lifetime_box.setLayout(lifetime_box_Layout)
+                self.image_label = QLabel(self.boxSpectraPara)
+                self.image_label.setFixedSize(470,380)
+                im = QPixmap('./images/rixs-geometry.png')
+                self.image_label.setScaledContents(True)
+                self.image_label.setPixmap(im)
 
-        self.temperature_label = QLabel(self.boxSpectraPara)
-        self.temperature_label.setAlignment(QtCore.Qt.AlignCenter)
-        # self.temperature_label.setStyleSheet(needToSaveStyleSheet)
-        self.temperature_label.setFixedHeight(32)
+            if "Para_Layout":
+                poltype_layout = QHBoxLayout()
+                poltype_layout.addWidget(self.poltype_label)
+                poltype_layout.addWidget(self.combo_in)
+                poltype_layout.addWidget(self.alpha_label)
+                poltype_layout.addWidget(self.alpha_text)
+                poltype_layout.addWidget(self.combo_out)
+                poltype_layout.addWidget(self.beta_label)
+                poltype_layout.addWidget(self.beta_text)
 
-        self.temperature_text = QLineEdit(self.boxSpectraPara)
-        # self.temperature_text.setStyleSheet(needToSaveStyleSheet)
-        self.temperature_text.setFixedSize(62, 32)
+                ParaLayout_top = QGridLayout()
+                ParaLayout_top.setAlignment(QtCore.Qt.AlignTop)
+                ParaLayout_top.addWidget(self.rixs_check_box, 0, 0, 1, 1, QtCore.Qt.AlignTop)
+                ParaLayout_top.addWidget(self.xas_check_box, 0, 1, 1, 1, QtCore.Qt.AlignTop)
+                ParaLayout_top.addLayout(poltype_layout,1,0,1,4, QtCore.Qt.AlignTop)
 
-        boxSpectraParaLayout = QGridLayout(self.boxSpectraPara)
-        boxSpectraParaLayout.setAlignment(QtCore.Qt.AlignTop)
-        boxSpectraParaLayout.addWidget(self.spectra_name_label, 0, 0, 1, 1, QtCore.Qt.AlignTop)
-        boxSpectraParaLayout.addWidget(self.spectra_name_text, 0, 1, 1, 1, QtCore.Qt.AlignTop)
-        boxSpectraParaLayout.addWidget(self.poltype_label, 1, 0, 1, 1, QtCore.Qt.AlignTop)
-        boxSpectraParaLayout.addWidget(self.poltype_text, 1, 1, 1, 3, QtCore.Qt.AlignTop)
-        boxSpectraParaLayout.addWidget(self.thin_label, 2, 0, 1, 1, QtCore.Qt.AlignTop)
-        boxSpectraParaLayout.addWidget(self.thin_text, 2, 1, 1, 1, QtCore.Qt.AlignTop)
-        boxSpectraParaLayout.addWidget(self.thout_label, 3, 0, 1, 1, QtCore.Qt.AlignTop)
-        boxSpectraParaLayout.addWidget(self.thout_text, 3, 1, 1, 1, QtCore.Qt.AlignTop)
-        boxSpectraParaLayout.addWidget(self.phi_label, 4, 0, 1, 1, QtCore.Qt.AlignTop)
-        boxSpectraParaLayout.addWidget(self.phi_text, 4, 1, 1, 1, QtCore.Qt.AlignTop)
-        boxSpectraParaLayout.addWidget(self.ominc_label, 5, 0, 1, 1, QtCore.Qt.AlignTop)
-        boxSpectraParaLayout.addWidget(self.ominc_text, 5, 1, 1, 1, QtCore.Qt.AlignTop)
-        boxSpectraParaLayout.addWidget(self.eloss_label, 6, 0, 1, 1, QtCore.Qt.AlignTop)
-        boxSpectraParaLayout.addWidget(self.eloss_text, 6, 1, 1, 1, QtCore.Qt.AlignTop)
-        # boxSpectraParaLayout.addWidget(self.lifetime_box, 4, 0, 1, 4, QtCore.Qt.AlignTop)
-        boxSpectraParaLayout.addWidget(self.temperature_label, 7, 0, 1, 1, QtCore.Qt.AlignTop)
-        boxSpectraParaLayout.addWidget(self.temperature_text, 7, 1, 1, 1, QtCore.Qt.AlignTop)
-        boxSpectraParaLayout.addWidget(self.buttonAddToSpectraList, 7, 2, 1, 1, QtCore.Qt.AlignTop)
+                ParaLayout = QGridLayout()
+                ParaLayout.setAlignment(QtCore.Qt.AlignTop)
+                ParaLayout.addWidget(self.thin_label, 2, 0, 1, 1, QtCore.Qt.AlignTop)
+                ParaLayout.addWidget(self.thin_text, 2, 1, 1, 1, QtCore.Qt.AlignTop)
+                ParaLayout.addWidget(self.thout_label, 3, 0, 1, 1, QtCore.Qt.AlignTop)
+                ParaLayout.addWidget(self.thout_text, 3, 1, 1, 1, QtCore.Qt.AlignTop)
+                ParaLayout.addWidget(self.phi_label, 4, 0, 1, 1, QtCore.Qt.AlignTop)
+                ParaLayout.addWidget(self.phi_text, 4, 1, 1, 1, QtCore.Qt.AlignTop)
+                ParaLayout.addWidget(self.photon_energy_ref_label, 5, 0, 1, 3, QtCore.Qt.AlignTop)
+                ParaLayout.addLayout(ominc_layout, 6, 0, 1, 4, QtCore.Qt.AlignTop)
+                ParaLayout.addLayout(eloss_layout, 7, 0, 1, 4, QtCore.Qt.AlignTop)
+                ParaLayout.addWidget(self.temperature_label, 8, 0, 1, 1, QtCore.Qt.AlignTop)
+                ParaLayout.addWidget(self.temperature_text, 8, 1, 1, 1, QtCore.Qt.AlignTop)
+                ParaLayout.addWidget(self.gamma_f_label, 9, 0, 1, 1, QtCore.Qt.AlignTop)
+                ParaLayout.addWidget(self.gamma_f_text, 9, 1, 1, 1, QtCore.Qt.AlignTop)
 
-        self.boxSpectraPara.setLayout(boxSpectraParaLayout)
+                Layout = QHBoxLayout()
+                Layout.addLayout(ParaLayout)
+                Layout.addWidget(self.image_label)
 
-        # 控件组合模板:self.boxSpectraList
-        self.boxSpectraList = QGroupBox(self.frame)
+                boxSpectraParaLayout = QVBoxLayout(self.boxSpectraPara)
+                boxSpectraParaLayout.addLayout(ParaLayout_top)
+                boxSpectraParaLayout.addLayout(Layout)
+                boxSpectraParaLayout.addWidget(self.scattering_axis_box)
+                # boxSpectraParaLayout.addWidget(self.image_label)
+                self.boxSpectraPara.setLayout(boxSpectraParaLayout)
 
-        self.spectra_list = QListWidget(self.boxSpectraList)
-        self.spectra_list.setFixedWidth(200)
-        self.spectra_list.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-        def spectra_list_menu_show():
-            if self.spectra_list.currentItem() is None:
-                return
-            self.spectra_list_menu.exec_(QtGui.QCursor.pos())
+        if "boxSpectraList":
+            self.boxSpectraList = QGroupBox(self.frame)
+            self.boxSpectraList.setGeometry(0, 170, 200, 605)
+            self.boxSpectraList.setFixedSize(200, 605)
 
-        self.spectra_list.customContextMenuRequested.connect(spectra_list_menu_show)
-        self.spectra_list.itemDoubleClicked.connect(self._handleOnImportSpectraFromList)
+            self.buttonAddToSpectraList = QPushButton(self.boxSpectraList)
+            self.buttonAddToSpectraList.setStyleSheet(needToSaveStyleSheet)
+            self.buttonAddToSpectraList.setFixedSize(80, 32)
+            self.buttonAddToSpectraList.clicked.connect(self._handleOnAddToSpectraList)
 
-        self.spectra_list_menu = QMenu(self.spectra_list)
+            self.buttonCheckInput = QPushButton(self.boxSpectraList)
+            self.buttonCheckInput.setStyleSheet(needToSaveStyleSheet)
+            self.buttonCheckInput.setFixedSize(80, 32)
+            self.buttonCheckInput.clicked.connect(self._handleOnCheckInput)
 
-        def spectra_list_import_action():
-            self._handleOnImportSpectraFromList(self.spectra_list.CurrentItem())
-        self.spectra_list_menu_import_action = QAction(self.spectra_list_menu)
-        self.spectra_list_menu_import_action.triggered.connect(spectra_list_import_action)
-        self.spectra_list_menu_delete_action = QAction(self.spectra_list_menu)
-        self.spectra_list_menu_delete_action.triggered.connect(self._handleOnDeleteFromSpectraList)
-        self.spectra_list_menu.addAction(self.spectra_list_menu_import_action)
-        self.spectra_list_menu.addAction(self.spectra_list_menu_delete_action)
+            self.spectra_list = QListWidget(self.boxSpectraList)
+            self.spectra_list.setFixedSize(180,480)
+            self.spectra_list.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+            def spectra_list_menu_show():
+                if self.spectra_list.currentItem() is None:
+                    return
+                self.spectra_list_menu.exec_(QtGui.QCursor.pos())
 
-        self.spectra_list_save_button = QPushButton(self.spectra_list)
-        self.spectra_list_save_button.setFixedSize(62, 32)
-        self.spectra_list_save_button.clicked.connect(self._handleOnSaveSpectraList)
+            self.spectra_list.customContextMenuRequested.connect(spectra_list_menu_show)
+            self.spectra_list.itemDoubleClicked.connect(self._handleOnImportSpectraFromList)
 
-        self.spectra_list_load_button = QPushButton(self.spectra_list)
-        self.spectra_list_load_button.setFixedSize(62, 32)
-        self.spectra_list_load_button.clicked.connect(self._handleOnLoadSpectraList)
+            self.spectra_list_menu = QMenu(self.spectra_list)
 
-        boxSpectraListParaLayout = QGridLayout(self.boxSpectraList)
-        boxSpectraListParaLayout.setAlignment(QtCore.Qt.AlignTop)
-        boxSpectraListParaLayout.addWidget(self.spectra_list, 2, 0, 2, 2, QtCore.Qt.AlignTop)
-        boxSpectraListParaLayout.addWidget(self.spectra_list_save_button, 4, 0, QtCore.Qt.AlignTop)
-        boxSpectraListParaLayout.addWidget(self.spectra_list_load_button, 4, 1, QtCore.Qt.AlignTop)
+            def spectra_list_import_action():
+                print("why does not work")
+                self._handleOnImportSpectraFromList(self.spectra_list.currentItem())
 
-        self.boxSpectraList.setLayout(boxSpectraListParaLayout)
+            self.spectra_list_menu_import_action = QAction(self.spectra_list_menu)
+            self.spectra_list_menu_import_action.triggered.connect(spectra_list_import_action)
+            self.spectra_list_menu_delete_action = QAction(self.spectra_list_menu)
+            self.spectra_list_menu_delete_action.triggered.connect(self._handleOnDeleteFromSpectraList)
+            self.spectra_list_menu.addAction(self.spectra_list_menu_import_action)
+            self.spectra_list_menu.addAction(self.spectra_list_menu_delete_action)
 
-        # 控件组合模板:scattering_axis_box
-        self.scattering_axis_box = QGroupBox(self.frame)
-        # 3*3的矩阵
-        self.scattering_axis_texts = [[QLineEdit(self.scattering_axis_box) for _ in range(3)] for _ in range(3)]
-        for row in self.scattering_axis_texts:
-            for LineEdit in row:
-                LineEdit.setFixedSize(62, 32)
+            self.spectra_list_save_button = QPushButton(self.spectra_list)
+            self.spectra_list_save_button.setFixedSize(80, 32)
+            self.spectra_list_save_button.clicked.connect(self._handleOnSaveSpectraList)
 
-        scattering_axis_box_layout = QGridLayout(self.scattering_axis_box)
-        scattering_axis_box_layout.setAlignment(QtCore.Qt.AlignTop)
+            self.spectra_list_load_button = QPushButton(self.spectra_list)
+            self.spectra_list_load_button.setFixedSize(80, 32)
+            self.spectra_list_load_button.clicked.connect(self._handleOnLoadSpectraList)
 
-        def arrange_matrix_on_box(grid_layout, widgets):
-            for row_i in range(len(widgets)):
-                one_row = widgets[row_i]
-                for col_j in range(len(one_row)):
-                    grid_layout.addWidget(one_row[col_j], row_i, col_j, QtCore.Qt.AlignTop)
+            boxSpectraListLayout = QGridLayout(self.boxSpectraList)
+            boxSpectraListLayout.setAlignment(QtCore.Qt.AlignTop)
+            boxSpectraListLayout.addWidget(self.buttonAddToSpectraList, 0, 0, 1, 1, QtCore.Qt.AlignTop)
+            boxSpectraListLayout.addWidget(self.buttonCheckInput, 0, 1, 1, 1, QtCore.Qt.AlignTop)
+            boxSpectraListLayout.addWidget(self.spectra_list, 1, 0, 2, 2, QtCore.Qt.AlignTop)
+            boxSpectraListLayout.addWidget(self.spectra_list_save_button, 3, 0, 1, 1, QtCore.Qt.AlignTop)
+            boxSpectraListLayout.addWidget(self.spectra_list_load_button, 3, 1, 1, 1, QtCore.Qt.AlignTop)
 
-        arrange_matrix_on_box(scattering_axis_box_layout, self.scattering_axis_texts)
-        self.scattering_axis_box.setLayout(scattering_axis_box_layout)
+            self.boxSpectraList.setLayout(boxSpectraListLayout)
 
-        # 控件组合模板:channel_box
-        self.channel_box = QGroupBox(self.frame)
+        if "channel_box":
+            self.channel_box = QGroupBox(self.frame)
+            self.channel_box.setFixedSize(955,200)
 
-        self.combo = QComboBox(self.channel_box)
-        self.combo.addItem("xas_1v1c_python_ed")  # 当选用某些频道但没有实现进行精确对角化则会报错,让用户先去进行相应的精确对角化
-        self.combo.addItem("xas_1v1c_fortran_ed")
-        self.combo.addItem("rixs_1v1c_python_ed")
-        self.combo.addItem("rixs_1v1c_fortran_ed")
-        self.combo.addItem("xas_2v1c_fortran_ed")
-        self.combo.addItem("rixs_2v1c_fortran_ed")
-        self.combo.setCurrentText("xas_1v1c_python_ed")
-        self.combo.setFixedSize(225, 32)
+            self.combo_xas = QComboBox(self.channel_box)
+            self.combo_xas.addItem("xas_1v1c_python_ed")  # 当选用某些频道但没有实现进行精确对角化则会报错,让用户先去进行相应的精确对角化
+            self.combo_xas.addItem("xas_1v1c_fortran_ed")
+            self.combo_xas.addItem("xas_2v1c_fortran_ed")
+            self.combo_xas.setCurrentText("xas_1v1c_python_ed")
+            self.combo_xas.setFixedSize(225, 42)
 
-        self.spectrum_calculation_button = QPushButton(self.channel_box)
-        self.spectrum_calculation_button.clicked.connect(self._handleOnSpectrumCalculation)
-        self.spectrum_calculation_button.setFixedSize(200, 32)
+            self.combo_rixs = QComboBox(self.channel_box)
+            self.combo_rixs.addItem("rixs_1v1c_python_ed")
+            self.combo_rixs.addItem("rixs_1v1c_fortran_ed")
+            self.combo_rixs.addItem("rixs_2v1c_fortran_ed")
+            self.combo_rixs.setFixedSize(225, 42)
 
-        self.plot_button = QPushButton(self.channel_box)
-        self.plot_button.setFixedSize(175, 32)
-        self.plot_button.clicked.connect(self._handleOnPlotSpectrum)
+            self.spectrum_calculation_button = QPushButton(self.channel_box)
+            self.spectrum_calculation_button.clicked.connect(self._handleOnSpectrumCalculation)
+            self.spectrum_calculation_button.setFixedSize(200, 42)
 
-        self.plotframe_xas_label = QLabel(self.channel_box)
-        self.plotframe_xas_label.setAlignment(QtCore.Qt.AlignCenter)
-        self.plotframe_xas_label.setFixedHeight(32)
-        self.plotframe_xas_combo = QComboBox(self.channel_box)
-        self.plotframe_xas_combo.setFixedSize(62, 32)
+            self.plot_button = QPushButton(self.channel_box)
+            self.plot_button.setFixedSize(200, 42)
+            self.plot_button.clicked.connect(self._handleOnPlotSpectrum)
 
-        self.plotframe_rixs_label = QLabel(self.channel_box)
-        self.plotframe_rixs_label.setAlignment(QtCore.Qt.AlignCenter)
-        self.plotframe_rixs_label.setFixedHeight(32)
-        self.plotframe_rixs_combo = QComboBox(self.channel_box)
-        self.plotframe_rixs_combo.setFixedSize(62, 32)
+            # self.plotframe_xas_label = QLabel(self.channel_box)
+            # self.plotframe_xas_label.setAlignment(QtCore.Qt.AlignCenter)
+            # self.plotframe_xas_label.setFixedHeight(32)
+            # self.plotframe_xas_combo = QComboBox(self.channel_box)
+            # self.plotframe_xas_combo.setFixedSize(62, 32)
+            # self.plotframe_rixs_label = QLabel(self.channel_box)
+            # self.plotframe_rixs_label.setAlignment(QtCore.Qt.AlignCenter)
+            # self.plotframe_rixs_label.setFixedHeight(32)
+            # self.plotframe_rixs_combo = QComboBox(self.channel_box)
+            # self.plotframe_rixs_combo.setFixedSize(62, 32)
+            # plotframe_combo_layout = QHBoxLayout()
+            # plotframe_combo_layout.addWidget(self.plotframe_xas_label)
+            # plotframe_combo_layout.addWidget(self.plotframe_xas_combo)
+            # plotframe_combo_layout.addWidget(self.plotframe_rixs_label)
+            # plotframe_combo_layout.addWidget(self.plotframe_rixs_combo)
 
-        channel_box_layout = QGridLayout()
-        channel_box_layout.setAlignment(QtCore.Qt.AlignTop)
-        channel_box_layout.addWidget(self.combo,0,0,QtCore.Qt.AlignTop)
-        channel_box_layout.addWidget(self.spectrum_calculation_button,1,0,QtCore.Qt.AlignTop)
-        channel_box_layout.addWidget(self.plot_button,2,0,QtCore.Qt.AlignTop)
-        channel_box_layout.addWidget(self.plotframe_xas_label,3,0,QtCore.Qt.AlignTop)
-        channel_box_layout.addWidget(self.plotframe_xas_combo,3,1,QtCore.Qt.AlignTop)
-        channel_box_layout.addWidget(self.plotframe_rixs_label,3,2,QtCore.Qt.AlignTop)
-        channel_box_layout.addWidget(self.plotframe_rixs_combo,3,3,QtCore.Qt.AlignTop)
-        self.channel_box.setLayout(channel_box_layout)
+            channel_box_layout = QGridLayout()
+            channel_box_layout.setAlignment(QtCore.Qt.AlignTop)
+            channel_box_layout.addWidget(self.combo_xas,0,1,QtCore.Qt.AlignTop)
+            channel_box_layout.addWidget(self.combo_rixs,0,3,QtCore.Qt.AlignTop)
+            channel_box_layout.addWidget(self.spectrum_calculation_button,1,2,QtCore.Qt.AlignTop)
+            channel_box_layout.addWidget(self.plot_button,2,2,QtCore.Qt.AlignTop)
+            self.channel_box.setLayout(channel_box_layout)
 
-        # frame的布局
-        mainLayout = QGridLayout(self.frame)
-        mainLayout.setAlignment(QtCore.Qt.AlignTop)
-        # mainLayout中的布局
-        mainLayout.setSpacing(2)
-
-        mainLayout.addWidget(self.boxSpectraPara, 0, 0, 8, 1, QtCore.Qt.AlignTop)
-        mainLayout.addWidget(self.lifetime_box, 8, 0, 1, 1, QtCore.Qt.AlignTop)
-        mainLayout.addWidget(self.boxSpectraList, 0, 1, 10, 1, QtCore.Qt.AlignTop)
-        mainLayout.addWidget(self.scattering_axis_box, 9, 0, 3, 1, QtCore.Qt.AlignTop)
-        mainLayout.addWidget(self.channel_box, 12, 0, 1, 1, QtCore.Qt.AlignTop)
-#
-        for t in range(mainLayout.columnCount()):
-            mainLayout.setColumnStretch(t,1)
-
-        self.frame.setLayout(mainLayout)
-        self.scrollForSecondFrame = QScrollArea(self.frame.parent())
-        self.scrollForSecondFrame.setWidget(self.frame)
+        if "mainLayout":
+            HBOX = QHBoxLayout()
+            HBOX.addWidget(self.boxSpectraList)
+            HBOX.addWidget(self.boxSpectraPara)
+            mainLayout = QVBoxLayout(self.frame)
+            mainLayout.setAlignment(QtCore.Qt.AlignTop)
+            # mainLayout中的布局
+            mainLayout.setSpacing(2)
+            mainLayout.addLayout(HBOX)
+            mainLayout.addWidget(self.channel_box)
+            self.frame.setLayout(mainLayout)
+            self.scrollForSecondFrame = QScrollArea(self.frame.parent())
+            self.scrollForSecondFrame.setWidget(self.frame)
 
     def _retranslateAll(self):
         self._retranslateTips()
@@ -324,212 +356,277 @@ class SecondFrame(OwnFrame):
 
     def _retranslateTips(self):
         _translate = QtCore.QCoreApplication.translate
-        # self.boxSpectraPara
-        self.poltype_text.setToolTip(
-            _translate("SecondFrame_poltype_text_tip", "光子极化状态"))
-        self.poltype_text.setPlaceholderText(
-            _translate("SecondFrame_poltype_text_sample", "例如:(linear,alpha,left,0)"))
-        self.thin_text.setToolTip(
-            _translate("SecondFrame_thin_text_tip","光子入射??"))
-        self.thin_text.setPlaceholderText(
-            _translate("SecondFrame_thin_text_sample","0.0"))
-        self.thout_text.setToolTip(
-            _translate("SecondFrame_thout_text_tip","光子出射??"))
-        self.thout_text.setPlaceholderText(
-            _translate("SecondFrame_thin_text_sample","0.0"))
-        self.phi_text.setToolTip(
-            _translate("SecondFrame_thout_text_tip","光子入射??"))
-        self.phi_text.setPlaceholderText(
-            _translate("SecondFrame_thin_text_sample","0.0"))
-        self.ominc_text.setToolTip(
-            _translate("SecondFrame_ominc_text_tip","入射光子能量(eV)"))
-        self.ominc_text.setPlaceholderText(
-            _translate("SecondFrame_ominc_text_sample","0.1:10:0.1或者0;10;5"))
-        self.eloss_text.setToolTip(
-            _translate("SecondFrame_eloss_text_tip","光子损失能量(eV)"))
-        self.ominc_text.setPlaceholderText(
-            _translate("SecondFrame_eloss_text_sample","0.1:10:0.1或者0;10;5"))
-        self.temperature_text.setToolTip(
-            _translate("SecondFrame_temperature_text_tip","温度"))
-        self.temperature_text.setPlaceholderText(
-            _translate("SecondFrame_temperature_text_sample","1.0"))
+        if "boxSpectraPara":
+            self.thin_text.setToolTip(
+                _translate("SecondFrame_thin_text_tip","光子入射??"))
+            self.thin_text.setPlaceholderText(
+                _translate("SecondFrame_thin_text_sample","0.0"))
+            self.thin_text.setText(
+                _translate("SecondFrame_thin_text_text",""))
+            self.thout_text.setToolTip(
+                _translate("SecondFrame_thout_text_tip","光子出射??"))
+            self.thout_text.setPlaceholderText(
+                _translate("SecondFrame_thin_text_sample","0.0"))
+            self.thout_text.setText(
+                _translate("SecondFrame_thin_text_text",""))
+            self.phi_text.setToolTip(
+                _translate("SecondFrame_thout_text_tip","光子入射??"))
+            self.phi_text.setPlaceholderText(
+                _translate("SecondFrame_thin_text_sample","0.0"))
+            self.phi_text.setText(
+                _translate("SecondFrame_thin_text_text",""))
+            self.photon_energy_ref_label.setToolTip(
+                _translate("SecondFrame_photon_energy_ref_label_tip","从精确对角化结果得到的入射光子能量参考:"
+                                                 "[min(eval_n)-min(eval_i), max(eval_n)-min(eval_i)]"))
+            self.ominc_texts[0].setToolTip(
+                _translate("SecondFrame_ominc_texts[1]_tip","start"))
+            self.ominc_texts[1].setToolTip(
+                _translate("SecondFrame_ominc_texts[1]_tip","end"))
+            self.ominc_texts[2].setToolTip(
+                _translate("SecondFrame_ominc_texts[2]_tip","# of steps"))
+            for text in self.ominc_texts:
+                text.setText(_translate("SecondFrame_ominc_text_text",""))
+            self.eloss_texts[0].setToolTip(
+                _translate("SecondFrame_eloss_texts[1]_tip","start"))
+            self.eloss_texts[1].setToolTip(
+                _translate("SecondFrame_eloss_texts[1]_tip","end"))
+            self.eloss_texts[2].setToolTip(
+                _translate("SecondFrame_eloss_texts[2]_tip","# of steps"))
+            for text in self.eloss_texts:
+                text.setText(_translate("SecondFrame_eloss_text_text",""))
 
-        # self.boxSpectraList
-        self.spectra_name_text.setToolTip(
-            _translate("SecondFrame_spectra_name_text_tip", "起个名字"))
-        self.spectra_name_text.setPlaceholderText(
-            _translate("SecondFrame_spectra_name_text", "例:rixs_Cu3d104s2"))
-        self.buttonAddToSpectraList.setToolTip(
-            _translate("SecondFrame_add_to_spectra_list_button_tip", "添加到列表中"))
+            self.temperature_text.setToolTip(
+                _translate("SecondFrame_temperature_text_tip","温度"))
+            self.temperature_text.setPlaceholderText(
+                _translate("SecondFrame_temperature_text_sample","1.0"))
+            self.temperature_text.setText(
+                _translate("SecondFrame_temperature_text_sample",""))
+            self.gamma_f_text.setToolTip(
+                _translate("SecondFrame_temperature_gamma_f_tip","gamma_f:用于rixs的计算"))
+            self.gamma_f_text.setPlaceholderText(
+                _translate("SecondFrame_temperature_gamma_f_sample","0.01"))
+            self.gamma_f_text.setText(
+                _translate("SecondFrame_temperature_gamma_f_sample",""))
 
-        self.spectra_list_menu_import_action.setToolTip(  # 这个好像没用
-            _translate("SecondFrame_spectra_list_menu_import_action_tip", "导入选中元素"))
-        self.spectra_list_menu_delete_action.setToolTip(  # 这个好像没用
-            _translate("SecondFrame_spectra_list_menu_import_action_tip", "删除选中元素"))
+        if "boxSpectraList":
+            self.buttonAddToSpectraList.setToolTip(
+                _translate("SecondFrame_add_to_spectra_list_button_tip", "添加到列表中"))
 
-        self.spectra_list_save_button.setToolTip(
-            _translate("SecondFrame_spectra_list_save_button_tip", "保存列表"))
-        self.spectra_list_load_button.setToolTip(
-            _translate("SecondFrame_spectra_list_load_button_tip", "加载列表"))
+            self.spectra_list_menu_import_action.setToolTip(  # 这个好像没用
+                _translate("SecondFrame_spectra_list_menu_import_action_tip", "导入选中元素"))
+            self.spectra_list_menu_delete_action.setToolTip(  # 这个好像没用
+                _translate("SecondFrame_spectra_list_menu_import_action_tip", "删除选中元素"))
 
-        # scattering_axis_box
-        for row in self.scattering_axis_texts:
-            for lineEdit in row:
-                lineEdit.setToolTip(_translate("SecondFrame_scattering_axis_texts_tip",""))
-                lineEdit.setPlaceholderText(_translate("SecondFrame_scattering_axis_texts_sample","例:1.0"))
+            self.spectra_list_save_button.setToolTip(
+                _translate("SecondFrame_spectra_list_save_button_tip", "保存列表"))
+            self.spectra_list_load_button.setToolTip(
+                _translate("SecondFrame_spectra_list_load_button_tip", "加载列表"))
 
-        # electron_lifetime_box
-        self.gamma_c_text.setToolTip(_translate("SecondFrame_gamma_c","寿命"))
-        self.gamma_c_text.setPlaceholderText(_translate("SecondFrame_gamma_c","例:0.1"))
-        self.gamma_f_text.setToolTip(_translate("SecondFrame_gamma_f","寿命"))
-        self.gamma_f_text.setPlaceholderText(_translate("SecondFrame_gamma_f","例:0.1"))
+        if "scattering_axis_box":
+            for row in self.scattering_axis_texts:
+                for lineEdit in row:
+                    lineEdit.setToolTip(_translate("SecondFrame_scattering_axis_texts_tip",""))
+                    lineEdit.setPlaceholderText(_translate("SecondFrame_scattering_axis_texts_sample","例:1.0"))
+                    lineEdit.setText(_translate("SecondFrame_scattering_axis_texts_text",""))
 
-        # channel_box
-        self.combo.setToolTip(_translate("SecondFrame_combo_tip","请选择一个频道"))
-        self.spectrum_calculation_button.setToolTip(_translate("SecondFrame_spectrum_calculation_button_tip","计算谱型"))
-        self.plot_button.setToolTip(_translate("SecondFrame_plot_button_tip","显示谱线"))
+        if "channel_box":
+            self.combo_xas.setToolTip(_translate("SecondFrame_combo_tip","请选择一个XAS频道"))
+            self.combo_rixs.setToolTip(_translate("SecondFrame_combo_tip","请选择一个RIXS频道"))
+            self.spectrum_calculation_button.setToolTip(_translate("SecondFrame_spectrum_calculation_button_tip","计算谱型"))
+            self.plot_button.setToolTip(_translate("SecondFrame_plot_button_tip","显示谱线"))
 
     def _retranslateNames(self):
         _translate = QtCore.QCoreApplication.translate
-        # self.boxSpectraPara
-        self.boxSpectraPara.setTitle(
-            _translate("SecondFrame_boxSpectraPara", "photon_para"))
-        self.poltype_label.setText(
-            _translate("SecondFrame_poltype_label_label", "poltype"))
-        self.thin_label.setText(
-            _translate("SecondFrame_thin_label_label", "thin"))
-        self.thout_label.setText(
-            _translate("SecondFrame_thout_label_label", "thout"))
-        self.phi_label.setText(
-            _translate("SecondFrame_phi_label_label", "phi"))
-        self.ominc_label.setText(
-            _translate("SecondFrame_ominc_label_label", "ominc"))
-        self.eloss_label.setText(
-            _translate("SecondFrame_eloss_label_label", "eloss"))
-        # electron_lifetime_box
-        self.lifetime_box.setTitle(_translate("SecondFrame_lifetime_box", "electron_lifetime"))
-        self.gamma_c_label.setText(_translate("SecondFrame_gamma_c_label", "gamma_c"))
-        self.gamma_f_label.setText(_translate("SecondFrame_gamma_f_label", "gamma_f"))
-        self.temperature_label.setText(_translate("SecondFrame_temperature_label", "temperature"))
+        if "Parameters":
+            self.boxSpectraPara.setTitle(
+                _translate("SecondFrame_boxSpectraPara", "Parameters"))
+            self.poltype_label.setText(
+                _translate("SecondFrame_poltype_label_text", "poltype"))
+            self.alpha_label.setText(
+                _translate("SecondFrame_alpha_label_text", "alpha:"))
+            self.beta_label.setText(
+                _translate("SecondFrame_alpha_label_text", "beta:"))
+            self.thin_label.setText(
+                _translate("SecondFrame_thin_label_label", "thin"))
+            self.thout_label.setText(
+                _translate("SecondFrame_thout_label_label", "thout"))
+            self.phi_label.setText(
+                _translate("SecondFrame_phi_label_label", "phi"))
+            self.photon_energy_ref_label.setText(
+                _translate("SecondFrame_photon_energy_ref_label", "incident_photon_energy_reference:"))
+            self.ominc_label.setText(
+                _translate("SecondFrame_ominc_label_label", "ominc_linspace"))
+            self.eloss_label.setText(
+                _translate("SecondFrame_eloss_label_label", "eloss_linspace"))
+            self.temperature_label.setText(_translate("SecondFrame_temperature_label", "temperature"))
+            self.gamma_f_label.setText(_translate("SecondFrame_gamma_f_label", "gamma_f"))
 
-        # self.boxSpectraList
-        self.boxSpectraList.setTitle(
-            _translate("secondFrame_spectra_list_title", "spectra_list"))
-        self.spectra_name_label.setText(
-            _translate("SecondFrame_spectra_name_label", "spectral_name"))
-        self.buttonAddToSpectraList.setText(
-            _translate("SecondFrame_add_to_spectra_list_button_label", "add to ->"))
+        if "boxSpectraList":
+            self.boxSpectraList.setTitle(
+                _translate("secondFrame_spectra_list_title", "spectra_list"))
+            self.buttonAddToSpectraList.setText(
+                _translate("SecondFrame_add_to_spectra_list_button_label", "ADD"))
+            self.buttonCheckInput.setText(
+                _translate("SecondFrame_buttonCheckInput_label", "CHECK"))
 
-        self.spectra_list_menu_import_action.setText(  # 这个好像没用
-            _translate("SecondFrame_spectra_list_menu_import_action_label", "import"))
-        self.spectra_list_menu_delete_action.setText(  # 这个好像没用
-            _translate("SecondFrame_spectra_list_menu_delete_action_label", "delete"))
+            self.spectra_list_menu_import_action.setText(  # 这个好像没用
+                _translate("SecondFrame_spectra_list_menu_import_action_label", "import"))
+            self.spectra_list_menu_delete_action.setText(  # 这个好像没用
+                _translate("SecondFrame_spectra_list_menu_delete_action_label", "delete"))
 
-        self.spectra_list_save_button.setText(
-            _translate("SecondFrame_spectra_list_save_button_label", "save"))
-        self.spectra_list_load_button.setText(
-            _translate("SecondFrame_spectra_list_load_button_label", "load"))
+            self.spectra_list_save_button.setText(
+                _translate("SecondFrame_spectra_list_save_button_label", "SAVE"))
+            self.spectra_list_load_button.setText(
+                _translate("SecondFrame_spectra_list_load_button_label", "LOAD"))
 
-        # scattering_axis_box
+        if "channel_box":
+            self.channel_box.setTitle(_translate("SecondFrame_channel_box", "channel_box"))
+            self.spectrum_calculation_button.setText(_translate("SecondFrame_spectrum_calculation_button_label", "spectrum_calculation"))
+            self.plot_button.setText(_translate("SecondFrame_plot_button_label", "plot spectrum"))
+
         self.scattering_axis_box.setTitle(_translate("SecondFrame_scattering_axis_title", "scattering_axis"))
 
-        # channel_box
-        self.channel_box.setTitle(_translate("SecondFrame_channel_box", "channel_box"))
-        self.spectrum_calculation_button.setText(_translate("SecondFrame_spectrum_calculation_button_label", "spectrum_calculation"))
-        self.plot_button.setText(_translate("SecondFrame_plot_button_label", "plot spectrum"))
-        self.plotframe_rixs_label.setText(_translate("SecondFrame_plotframe_rixs_label","plotframe_rixs"))
-        self.plotframe_xas_label.setText(_translate("SecondFrame_plotframe_xas_label","plotframe_xas"))
-
     def _textInputRestrict(self):
-        # to do list: poltype规范输入的正则表达式
-        # poltypeRegx = QtCore.QRegExp(r"(linear,0)|(left,0)|(right,0)|(isotropic,0)") #之后还要修改(linear,0)
-        # poltypeRegxValidator = QtGui.QRegExpValidator(poltypeRegx, self.frame)
-        # self.poltype_text.setValidator(poltypeRegxValidator)
-        self.thin_text.setValidator(self.floatRegxValidator)
+        self.alpha_text.setValidator(self.floatRegxValidator)
+        self.beta_text.setValidator(self.floatRegxValidator)
+        self.thout_text.setValidator(self.floatRegxValidator)
         self.thout_text.setValidator(self.floatRegxValidator)
         self.phi_text.setValidator(self.floatRegxValidator)
-        self.ominc_text.setValidator(self.floatlistRegxValidator)
-        self.eloss_text.setValidator(self.floatlistRegxValidator)
-        self.gamma_c_text.setValidator(self.floatListRegxValidator)
-        self.gamma_f_text.setValidator(self.floatListRegxValidator)
+        self.ominc_texts[0].setValidator(self.floatRegxValidator)
+        self.ominc_texts[1].setValidator(self.floatRegxValidator)
+        self.ominc_texts[2].setValidator(self.npRegxValidator)
+        self.eloss_texts[0].setValidator(self.floatRegxValidator)
+        self.eloss_texts[1].setValidator(self.floatRegxValidator)
+        self.eloss_texts[2].setValidator(self.npRegxValidator)
 
+        self.temperature_text.setValidator(self.floatRegxValidator)
+        self.gamma_f_text.setValidator(self.floatRegxValidator)
         for row in self.scattering_axis_texts:
             for lineEdit in row:
                 lineEdit.setValidator(self.floatRegxValidator)
 
     def _arrangeDataInWidgets(self):
-        super()._bindDataWithWidgets("spectra_name", self.spectra_name_text, self._toSimpleStrFromText)
-        super()._bindDataWithWidgets("poltype", self.poltype_text, self._toSimpleStrFromText)
+        super()._bindDataWithWidgets("alpha", self.alpha_text, self._toFloatFromText)
+        super()._bindDataWithWidgets("beta", self.beta_text, self._toFloatFromText)
         super()._bindDataWithWidgets("thin", self.thin_text, self._toFloatFromText)
         super()._bindDataWithWidgets("thout", self.thout_text, self._toFloatFromText)
         super()._bindDataWithWidgets("phi", self.phi_text, self._toFloatFromText)
-        super()._bindDataWithWidgets("ominc", self.ominc_text, self._tofloatlistByStrFromText)
-        super()._bindDataWithWidgets("eloss", self.eloss_text, self._tofloatlistByStrFromText)
-        super()._bindDataWithWidgets("gamma_c", self.gamma_c_text, self._toFloatListByStrFromText)
-        super()._bindDataWithWidgets("gamma_f", self.gamma_f_text, self._toFloatListByStrFromText)
+        super()._bindDataWithWidgets("ominc_start", self.ominc_texts[0], self._toFloatFromText)
+        super()._bindDataWithWidgets("ominc_end", self.ominc_texts[1], self._toFloatFromText)
+        super()._bindDataWithWidgets("ominc_steps", self.ominc_texts[2], self._toIntFromText)
+        super()._bindDataWithWidgets("eloss_start", self.eloss_texts[0], self._toFloatFromText)
+        super()._bindDataWithWidgets("eloss_end", self.eloss_texts[1], self._toFloatFromText)
+        super()._bindDataWithWidgets("eloss_steps", self.eloss_texts[2], self._toIntFromText)
+
+        super()._bindDataWithWidgets("temperature", self.temperature_text, self._toFloatFromText)
+        super()._bindDataWithWidgets("gamma_f", self.gamma_f_text, self._toFloatFromText)
         super()._bindDataWithWidgets("scattering_axis", self.scattering_axis_texts, self._toFloatListByWidgets_2DFromText)
 
 # 以下是与数据处理/传递相关的函数
-    def _verifyValidSpectraData(self):
+    def _verifyValid_and_getSpectraDataFromInput(self) -> SpectraBasicData or None:
         # 如果验证通过，可以加入到列表中
-        verified = True
-        # 哪些是必须填的参数
-        ominc = super()._getDataFromInupt("ominc")
-        eloss = super()._getDataFromInupt("eloss")
-        eval_i = self.eval_i_present
-        eval_n = self.eval_n_present
-        trans_op = self.trans_op_present
-        # gs_list = self.gs_list_present
-        if ominc is None:
-            self.informMsg("请输入规范格式的ominc")
-            verified = False
-        if eloss is None:
-            self.informMsg("请输入规范格式的eloss")
-            verified = False
-        if eval_i is None:
-            self.informMsg("eval_i怎么不存在？")
-            verified = False
-        if eval_n is None:
-            self.informMsg("eval_n怎么不存在？")
-            verified = False
-        if trans_op is None:
-            self.informMsg("trans_op怎么不存在？")
-            verified = False
-        return verified
+        if "get parameters from input and check":
+            if self.rixs_check_box.isChecked() == True:
+                spectra_type = "rixs"
+                poltype_in = self.combo_in.currentText()
+                if poltype_in == 'isotropic':
+                    self.informMsg("RIXS现无法计算isotropic类型,请选择其他类型")
+                    return
+                alpha = super()._getDataFromInupt("alpha")
+                poltype_out = self.combo_out.currentText()
+                if poltype_out == 'isotropic':
+                    self.informMsg("RIXS现无法计算isotropic类型,请选择其他类型")
+                    return None
+                beta = super()._getDataFromInupt("beta")
+                poltype = [(poltype_in, alpha, poltype_out, beta)]
+                eloss_start = super()._getDataFromInupt("eloss_start")
+                eloss_end = super()._getDataFromInupt("eloss_end")
+                eloss_steps = super()._getDataFromInupt("eloss_steps")
+                try:
+                    eloss = np.linspace(eloss_start, eloss_end, eloss_steps)
+                    if len(eloss) == 0:  # 往往是steps的个数设置为0
+                        self.informMsg("请输入规范格式的eloss: # of steps应为正整数")
+                        return None
+                    if eloss[1] == eloss[0]:  # 判断eloss中的元素是否全部都相等
+                        self.informMsg("请输入规范格式的eloss: start和end相同")
+                        return None
+                except Exception as e:
+                    print(e)
+                    self.informMsg("请输入规范格式的eloss")
+                    return None
+                gamma_f = super()._getDataFromInupt("gamma_f")
+            else:
+                spectra_type = "xas"
+                poltype_in = self.combo_in.currentText()
+                alpha = super()._getDataFromInupt("alpha")
+                poltype = [(poltype_in, alpha)]
+                eloss = None
+                gamma_f = 0.0
 
-    def _getSpectraDataFromInput(self) -> SpectraBasicData or None:
-        if not self._verifyValidSpectraData():
-            self.informMsg("信息不完整,请检查")
-            return None
-        spectra_name = super()._getDataFromInupt("spectra_name")
-        poltype = super()._getDataFromInupt("poltype")
-        thin = super()._getDataFromInupt("thin")
-        thout = super()._getDataFromInupt("thout")
-        phi = super()._getDataFromInupt("phi")
-        ominc = super()._getDataFromInupt("ominc")
-        eloss = super()._getDataFromInupt("eloss")
-        gamma_c = super()._getDataFromInupt("gamma_c")
-        gamma_f = super()._getDataFromInupt("gamma_f")
-        scattering_axis = super()._getDataFromInupt("scattering_axis")
-        temperature = super()._getDataFromInupt("temperature")
+            thin = super()._getDataFromInupt("thin")
+            thout = super()._getDataFromInupt("thout")
+            phi = super()._getDataFromInupt("phi")
+            temperature = super()._getDataFromInupt("temperature")
+            if temperature == 0.0:
+                temperature = 0.00001  # 0是算不了的,不能当分母
+            ominc_start = super()._getDataFromInupt("ominc_start")
+            ominc_end = super()._getDataFromInupt("ominc_end")
+            ominc_steps = super()._getDataFromInupt("ominc_steps")
+            print(ominc_start, ominc_end, ominc_steps)
+            try:
+                ominc = np.linspace(ominc_start,ominc_end,ominc_steps)
+                print(ominc)
+                if len(ominc) == 0:  # 往往是steps的个数设置为0
+                    self.informMsg("请输入规范格式的ominc")
+                    return None
+                if np.all(ominc/ominc[0]-np.zeros(len(ominc))) == 0:  # 判断ominc中的元素是否都相等
+                    self.informMsg("请输入规范格式的ominc")
+                    return None
+            except Exception as e:
+                print(e)
+                self.informMsg("请输入规范格式的ominc")
+                return None
 
-        spectraData = SpectraBasicData(
-            name=spectra_name,
-            poltype=poltype,
-            thin=thin,
-            thout=thout,
-            phi=phi,
-            ominc=ominc,
-            eloss=eloss,
-            gamma_c=gamma_c,
-            gamma_f=gamma_f,
-            scattering_axis=scattering_axis,
-            eval_i=self.eval_i_present,
-            eval_n=self.eval_n_present,
-            trans_op=self.trans_op_present,
-            gs_list=self.gs_list_present,
-            temperature=temperature)
-        return spectraData
+            atomdata = self.atomdata_present
+            if atomdata is None:
+                self.informMsg("没有原子信息")
+                return None
+            eval_i = atomdata.ed["eval_i"]
+            if eval_i is []:
+                self.informMsg("eval_i not exist")
+                return None
+            eval_n = atomdata.ed["eval_n"]
+            if eval_n is []:
+                self.informMsg("eval_n not exist")
+                return None
+            trans_op = atomdata.ed["trans_op"]
+            if trans_op is [[]]:
+                self.informMsg("trans_op not exist")
+                return None
+            scattering_axis = super()._getDataFromInupt("scattering_axis")
+            if scattering_axis == [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]:
+                scattering_axis = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
+            mat = np.array(scattering_axis)
+            if np.all(np.dot(mat.T, mat) - np.diag([1] * 3)) != 0:
+                self.informMsg("请输入实幺正矩阵scattering_axis")
+                return None
+
+        if "get SpectraBasicData":
+            spectra_data = SpectraBasicData(atomdata=atomdata,
+                                            spectra_type=spectra_type,
+                                            poltype=poltype,
+                                            thin=thin,
+                                            thout=thout,
+                                            phi=phi,
+                                            ominc=ominc,
+                                            eloss=eloss,
+                                            scattering_axis=scattering_axis,
+                                            temperature=temperature,
+                                            gamma_f=gamma_f,
+                                            spectra=self.spectra_data_present)
+            print("success create an SpectraBasicData-class")
+
+        return spectra_data
 
     def _getItemFromSpectraData(self, parent, spectraData:SpectraBasicData) -> QListWidgetItem:
         item = QListWidgetItem(parent)
@@ -537,139 +634,92 @@ class SecondFrame(OwnFrame):
         item.setText(itemName)
         return item
 
-# spectra数据相关
-# self.boxSpectraList的某个调用函数
-    def _handleOnImportSpectraFromList(self, item:QListWidgetItem):
-        data = self.dataManager_spectra.getSpectraDataByName(item.text())
-        if data is None:  # 应该不会到这里，加入列表的时候存在，这个选择又只能选择列表中的，应该不会不存在
-            self.informMsg(f"导入数据失败，未找到:{item.text()}")
+    def _handleOnCheckChanged_rixs(self):
+        if self.rixs_check_box.isChecked() == True:
+            self.xas_check_box.setChecked(False)
             return
+        else:
+            self.xas_check_box.setChecked(True)
+
+    def _handleOnCheckChanged_xas(self):
+        if self.xas_check_box.isChecked() == True:
+            self.rixs_check_box.setChecked(False)
+            return
+        else:
+            self.rixs_check_box.setChecked(True)
+
+    def _handleOnCheckInput(self):
+        self._verifyValid_and_getSpectraDataFromInput()
+
+    def _handleOnImportSpectraFromList(self, item:QListWidgetItem):
+        print(item.text())
+        spectra_data = self.dataManager_spectra.getSpectraDataByName(item.text())  # 能够存放在dataManager_spectra中的都是合法的数据
+        print("数据获取成功")
         # 根据数据设置界面
         self.spectra_name_present = item.text()
-        self.spectra_data_present = self.dataManager_spectra.spectraBasicDataList[self.spectra_name_present]
-        self.eval_i_present = self.spectra_data_present.eval_i
-        self.eval_n_present = self.spectra_data_present.eval_n
-        self.trans_op_present = self.spectra_data_present.trans_op
-        self.gs_list_present = self.spectra_data_present.gs_list
-        self._setInterfaceBySpectraData(data)
+        self.atomdata_present = spectra_data.atomdata
+        self.spectra_data_present = spectra_data.spectra
+        self._setInterfaceBySpectraData(spectra_data)
 
     def _setInterfaceBySpectraData(self, data:SpectraBasicData):  # data类型到时候需注明
-        if data is None:
-            return
-        self.spectra_name_text.setText("" if data.name is None else data.name)
-        self.poltype_text.setText("" if data.poltype is None else data.poltype)
-        self.thin_text.setText("" if data.thin is None else data.thin)
-        self.thout_text.setText("" if data.thout is None else data.thout)
-        self.phi_text.setText("" if data.phi is None else data.phi)
-        self.ominc_text.setText("" if data.ominc is None else data.ominc)
-        self.eloss_text.setText("" if data.eloss is None else data.eloss)
+        self._retranslateNames() # 先把当前界面清空一下
+        spectra_type = data.spectra_type
+        poltype = data.poltype
+        # print(data.thin[0])
+        # print(str(data.thin[0]))
+        # print(data.thout)
+        # print(str(data.thout))
+        # print(data.phi)
+        self.thin_text.setText(str(data.thin[0]))
+        self.thout_text.setText(str(data.thout[0]))
+        self.phi_text.setText(str(data.phi[0]))       # 打开文件发现保存的thin/thout/phi都是以元组的形式保存,如(thin,)
+        print("asda")
+        self.photon_energy_ref_label.setText("incident_photon_energy_reference: " + "[" + \
+                                             str(min(self.atomdata_present.ed["eval_n"])-min(self.atomdata_present.ed["eval_i"])) \
+                                             + ', ' + \
+                                             str(max(self.atomdata_present.ed["eval_n"])-min(self.atomdata_present.ed["eval_i"])) \
+                                             + ']')
+        self.ominc_texts[0].setText(str(data.ominc[0]))
+        self.ominc_texts[1].setText(str(data.ominc[-1]))
+        self.ominc_texts[2].setText(str(len(data.ominc)))
+        self.temperature_text.setText("" if data.temperature is None else str(data.temperature))
+        print("so true")
         if data.scattering_axis is not None:
-            i = 0
-            j = 0
-            for row in self.scattering_axis_texts:
-                for lineEdit in row:
-                    lineEdit.setText(data.scattering_axis[i][j])
-                    j += 1
-                i += 1
+            for i in range(3):
+                for j in range(3):
+                    self.scattering_axis_texts[i][j].setText(str(data.scattering_axis[i][j]))
+        print("asas")
+        if spectra_type == "rixs":
+            self.rixs_check_box.setChecked(True)
+            self.combo_in.setCurrentText(poltype[0][0])
+            self.alpha_text.setText(str(poltype[0][1]))
+            self.combo_out.setCurrentText(poltype[0][2])
+            self.beta_text.setText(str(poltype[0][3]))
+            self.eloss_texts[0].setText(str(data.eloss[0]))
+            self.eloss_texts[1].setText(str(data.eloss[-1]))
+            self.eloss_texts[2].setText(str(len(data.eloss)))
+            self.gamma_f_text.setText(str(data.gamma_f))
+        else:
+            self.xas_check_box.setChecked(True)
+            self.combo_in.setCurrentText(poltype[0][0])
+            self.alpha_text.setText(str(poltype[0][1]))
+            self.eloss_texts[0].setText("")
+            self.eloss_texts[1].setText("")
+            self.eloss_texts[2].setText("")
+            self.gamma_f_text.setText(str(data.gamma_f))
 
-# self.boxSpectraList的某个调用函数
-    def _handleOnDeleteFromSpectraList(self) -> bool:
-        item = self.spectra_list.currentItem()
-        if item is None:
-            return False
-        row = self.spectra_list.row(item)
-        if item == self.spectra_name_present: # 恰好删除的是当前的item,即在界面上显示的那个
-            self.spectra_list.takeItem(row)
-            self.spectra_list.sortItems()
-            self.spectra_name_present = None
-            self.spectra_data_present = None
-            self._retranslateTips()  # 再将界面上的数据抹去
-        else: # 删除的不是当前的item
-            self.spectra_list.takeItem(row)
-
-        # 把dataManager中的也删了吧
-        del self.dataManager_spectra.spectraBasicDataList[item.text()]
-
-        # print(item.text())
-        return True
-
-    def _handleOnSaveSpectraList(self):
-        item = self.spectra_list.currentItem()
-        if item is None:
-            self.informMsg("未选中atom_list中的item")
-            return False
-
-        fileName = item.text() + ".json"
-        SpectraData = self.dataManager_spectra.spectraBasicDataList[item.text()]
-        IsNameRight = False
-        fileName_choose, filetype = QFileDialog.getSaveFileName(self.frame,
-                                                                "文件保存",
-                                                                "." + fileName,  # 起始路径
-                                                                "Json Files (.json)")
-        # PyQt【控件】：QFileDialog.getSaveFileName()的使用
-        # 控件作用：打开文件资源管理器，获得你需要保存的文件名，注意：它不会帮你创建文件，只一个返回元组，元组第一项为你的文件路径。
-
-        str_list = fileName_choose.split("/")
-        if str_list[-1] == fileName:
-            IsNameRight = True
-            with open(fileName_choose, 'w') as f:
-                json.dump(SpectraData, f, indent=4)  # 若已存在该文件,就覆盖之前
-
-        if IsNameRight == False:
-            self.informMsg("文件名不是spectra_name,请重新保存")
-
-        return IsNameRight
-
-    def _handleOnLoadSpectraList(self):
-        fileName, fileType = QFileDialog.getOpenFileName(self.frame, r'Load json',
-                                               r'D:\Users\yg\PycharmProjects\spectra_data',
-                                               r'json Files(*.json)')  # 打开程序文件所在目录是将路径换为.即可
-        if fileName == "":
-            self.informMsg("未选择文件")
-            return
-        DataFromFile = self._getSpectraBasicDataFromJsonFile(fileName)
-        if DataFromFile == None:
-            return
-        if DataFromFile.name in self.dataManager_spectra.spectraBasicDataList.keys():
-            reply = self.questionMsg("List中已经存在相同名称,是否进行覆盖？")
-            if reply == True:
-                self.dataManager_spectra.addSpectraData(DataFromFile)  # 这里需要修改,因为spectraData是字典,
-                                                                       # 而dataManager_spectra中装的是类
-            if reply == False:
-                return None
-        item = self._getItemFromSpectraData(self.spectra_list, DataFromFile)
-        row = 0
-        while row < self.spectra_list.count():
-            if self.spectra_list.item(row).text() == item.text():
-                break
-            row += 1
-        if row != self.spectra_list.count():
-            self.spectra_list.takeItem(row)
-        self.spectra_list.addItem(item)
-        self.spectra_list.sortItems()
-        self.spectra_list.setCurrentItem(item)
-
-        self._handleOnImportSpectraFromList(item)
-
-    def _getSpectraBasicDataFromJsonFile(self, fileName:str) -> SpectraBasicData or None:
-        with open(fileName, "r") as f:
-            spectraData = json.loads(f.read())  # temp是存放spectra data的数据类
-
-        if self.SpectraDataKeys != list(spectraData.keys()):
-            self.informMsg("打开了错误的文件")
-            return None
-
-        DataFromFile = SpectraBasicData()
-        for key in self.SpectraDataKeys:
-            DataFromFile.key = spectraData[key]
-
-        return DataFromFile
-
-# self.buttonAddToSpectraList的调用函数
     def _handleOnAddToSpectraList(self):
-        spectraData = self._getSpectraDataFromInput()
+        spectraData = self._verifyValid_and_getSpectraDataFromInput()
         if spectraData is None:
             return
+        spectra_name = DataManager_spectra.getNameFromSpectraData(spectraData)
+        if spectraData.spectra == {}:
+            self.informMsg("请先进行谱型计算再添加到list")
+            return
+        if spectra_name in self.dataManager_spectra.spectraBasicDataList.keys():
+            reply = self.questionMsg("已存在同名item,请问是否覆盖")
+            if reply == False:
+                return
         if self.dataManager_spectra.addSpectraData(spectraData) is False:
             self.informMsg("信息不完整或有误,请检查")
             return
@@ -680,158 +730,210 @@ class SecondFrame(OwnFrame):
                 break
             row += 1
         if row != self.spectra_list.count():
-            reply = self.questionMsg("该名称的文件已存在,是否要覆盖？")
-            if reply == True:
-                self.spectra_list.takeItem(row)
-                self.spectra_list.addItem(item)
-                self.spectra_list.sortItems()
-                self.spectra_list.setCurrentItem(item)
-            if reply == False:
-                return
-        self.spectra_name_present = spectraData.name
-        self.spectra_data_present = spectraData
-        self.eval_i_present = self.spectra_data_present.eval_i
-        self.eval_n_present = self.spectra_data_present.eval_n
-        self.trans_op_present = self.spectra_data_present.trans_op
-        self.gs_list_present = self.spectra_data_present.gs_list
+            self.spectra_list.takeItem(row)
+            self.spectra_list.addItem(item)
+            self.spectra_list.sortItems()
+            self.spectra_list.setCurrentItem(item)
 
-# no one use
-    def _getSpectraDataFromSpectraList(self, item: QListWidgetItem) -> SpectraBasicData or None:
-        return self.dataManager_spectra.getSpectraDataByName(item.text())
+        self.spectra_name_present = DataManager_spectra.getNameFromSpectraData(spectraData)
+
+# spectra数据相关
+# self.boxSpectraList的某个调用函数
+    def _handleOnDeleteFromSpectraList(self) -> bool:
+        item = self.spectra_list.currentItem()
+        if item is None:
+            return False
+        row = self.spectra_list.row(item)
+        if item.text() == self.spectra_name_present: # 恰好删除的是当前的item,即在界面上显示的那个
+            self.spectra_list.takeItem(row)
+            self.spectra_list.sortItems()
+            self.atomdata_present = None
+            self.spectra_name_present = None
+            self.spectra_data_present = {}
+            self._retranslateTips()  # 再将界面上的数据抹去
+        else: # 删除的不是当前的item
+            self.spectra_list.takeItem(row)
+
+        # 把dataManager中的也删了吧
+        del self.dataManager_spectra.spectraBasicDataList[item.text()]
+        return True
+
+    def _handleOnLoadSpectraList(self):
+        fileName, fileType = QFileDialog.getOpenFileName(self.frame, r'Load json',
+                                               r'D:\Users\yg\PycharmProjects\spectra_data',
+                                               r'json Files(*.json)')  # 打开程序文件所在目录是将路径换为.即可
+        if fileName == "":
+            self.informMsg("未选择文件")
+            return
+        SpectraData = DataManager_spectra.getSpectraDataFromJsonFile(fileName)
+        if SpectraData == None:
+            return
+        spectra_name = DataManager_spectra.getNameFromSpectraData(SpectraData)
+        if spectra_name in self.dataManager_spectra.spectraBasicDataList.keys():
+            reply = self.questionMsg("List中已经存在相同名称,是否进行覆盖？")
+            if reply == False:
+                return None
+        print(fileName)
+        self.dataManager_spectra.addSpectraData(SpectraData)
+        item = self._getItemFromSpectraData(self.spectra_list, SpectraData)
+        row = 0
+        while row < self.spectra_list.count():
+            if self.spectra_list.item(row).text() == item.text():
+                break
+            row += 1
+        if row != self.spectra_list.count():
+            self.spectra_list.takeItem(row)
+        print("here")
+        self.spectra_list.addItem(item)
+        self.spectra_list.sortItems()
+        self.spectra_list.setCurrentItem(item)
+        self.informMsg("文件成功导入到spectra_list")
+
+    def _handleOnSaveSpectraList(self):
+        item = self.spectra_list.currentItem()
+        if item is None:
+            self.informMsg("未选中atom_list中的item")
+            return False
+
+        fileName = item.text() + ".json"
+        SpectraData = self.dataManager_spectra.spectraBasicDataList[item.text()]
+        fileName_choose, filetype = QFileDialog.getSaveFileName(self.frame,
+                                                                "文件保存",
+                                                                "./" + fileName,  # 起始路径
+                                                                "Json Files (.json)")
+        str_list = fileName_choose.split("/")
+        if str_list[-1] != fileName:
+            self.informMsg("文件名不是atom_name,请重新保存")
+            return
+
+        spectra_data_dict = DataManager_spectra.saveSpectraDatatoJsonFile(SpectraData)
+        with open(fileName_choose, 'w') as f:
+            try:
+                json.dump(spectra_data_dict, f, indent=4)  # 若已存在该文件,就覆盖之前
+            except Exception as e:
+                print(e)
+                self.informMsg("保存失败")
+                return
+        self.informMsg("已经保存")
 
 # self.spectrum_calculation_button的调用函数(only)
     def _handleOnSpectrumCalculation(self) -> bool:
-        SpectraData = self._getSpectraDataFromInput()
+        SpectraData = self._verifyValid_and_getSpectraDataFromInput()
         if SpectraData == None:
             return False
-        if self.spectra_name_present == None:  # 如果输入的数据没有保存,就报错
-            self.informMsg("请先添加到spectra_list之后再进行计算")
-            return False
-
-        if self.combo.currentText() == "xas_1v1c_python_ed":
-            ominc = SpectraData.ominc
-            gamma_c = SpectraData.gamma_c
-            if gamma_c is None:
-                gamma_c = 0.1
-            thin = SpectraData.thin
-            if thin is None:
-                thin = 1.0
-            phi = SpectraData.phi
-            if phi is None:
-                phi = 0
-            poltype = SpectraData.poltype
-            gs_list = self.gs_list_present
-            temperature = SpectraData.temperature
-            if temperature is None:
-                temperature = 1.0
-            scattering_axis = SpectraData.scattering_axis
-            if scattering_axis is not None:
-                scattering_axis = np.array(scattering_axis)
-            
-            if 'xas' in self.dataManager_spectra.spectraBasicDataList[self.spectra_name_present].spectra.keys():
-                reply = self.questionMsg("当前数据类中已经含有xas spectra,是否进行覆盖")
-                if reply == True:
-                    spectra = xas_1v1c_py(eval_i=self.eval_i_present, eval_n=self.eval_n_present, trans_op=self.trans_op_present,
-                                          ominc=ominc, gamma_c=gamma_c, thin=thin, phi=phi, pol_type=poltype, gs_list=gs_list,
-                                          temperature=temperature, scatter_axis=scattering_axis)
-            self.dataManager_spectra.spectraBasicDataList[self.spectra_name_present].spectra['xas_1v1c_python_ed'] = spectra
+        self.eloss_present = SpectraData.eloss
+        self.ominc_present = SpectraData.ominc
+        if self.xas_check_box.isChecked() == True:
+            if self.combo_xas.currentText() == "xas_1v1c_python_ed":
+                ominc = np.array(SpectraData.ominc)
+                gamma_c = SpectraData.atomdata.gamma_c
+                thin = (SpectraData.thin)*np.pi/180  # 角度转弧度
+                phi = (SpectraData.phi)*np.pi/180
+                poltype = SpectraData.poltype # poltype是一个列表[],这里列表只有一个元素,是一个tuple(str,float,str,float)
+                print(poltype)
+                print(poltype[0][0])
+                print(poltype[0][1])
+                poltype = [(poltype[0][0],poltype[0][1])]
+                temperature = SpectraData.temperature
+                scattering_axis = SpectraData.scattering_axis
+                if 'xas_1v1c_python_ed' in SpectraData.spectra.keys():
+                    reply = self.questionMsg("当前数据类中已经含有xas_1v1c_python_ed spectra,是否进行覆盖")
+                    if reply == False:
+                        return False
+                xas_1v1c_spectra = xas_1v1c_py(eval_i=SpectraData.atomdata.ed["eval_i"],
+                                               eval_n=SpectraData.atomdata.ed["eval_n"],
+                                               trans_op=SpectraData.atomdata.ed["trans_op"],
+                                               ominc=ominc, gamma_c=gamma_c,
+                                               thin=thin, phi=phi, pol_type=poltype,
+                                               gs_list=SpectraData.atomdata.ed["gs_list"],
+                                               temperature=temperature, scatter_axis=scattering_axis)
+                SpectraData.spectra['xas_1v1c_python_ed'] = xas_1v1c_spectra
+                print(xas_1v1c_spectra)
+                self.spectra_data_present['xas_1v1c_python_ed'] = xas_1v1c_spectra
+                print("谱型计算完成")
             return True
 
-        if self.combo.currentText() == "rixs_1v1c_python_ed":
-            ominc = SpectraData.ominc
-            eloss = SpectraData.eloss
-            gamma_c = SpectraData.gamma_c
-            if gamma_c is None:
-                gamma_c = 0.1
-            gamma_f = SpectraData.gamma_f
-            if gamma_f is None:
-                gamma_f = 0.01
-            thin = SpectraData.thin
-            if thin is None:
-                thin = 1.0
-            thout = SpectraData.thout
-            if thout is None:
-                thout = 1.0
-            phi = SpectraData.phi
-            if phi is None:
-                phi = 0
-            poltype = SpectraData.poltype
-            gs_list = self.gs_list_present
-            temperature = SpectraData.temperature
-            if temperature is None:
-                temperature = 1.0
-            scatter_axis = SpectraData.scattering_axis
-            if scatter_axis is not None:
-                scatter_axis = np.array(scatter_axis)
-
-            spectra = rixs_1v1c_py(eval_i=self.eval_i_present, eval_n=self.eval_n_present,
-                                   trans_op=self.trans_op_present, ominc=ominc, eloss=eloss, gamma_c=gamma_c,
-                                   gamma_f=gamma_f, thin=thin, thout=thout, phi=phi, pol_type=poltype, gs_list=gs_list,
-                                   temperature=temperature, scatter_axis=scatter_axis)
-
-            self.dataManager_spectra.spectraBasicDataList[self.spectra_name_present].spectra['rixs_1v1c_python_ed'] = spectra
-            return True
+        else:
+            if self.combo_rixs.currentText() == "rixs_1v1c_python_ed":
+                ominc = np.array(SpectraData.ominc)
+                eloss = np.array(SpectraData.eloss)
+                gamma_c = SpectraData.atomdata.gamma_c
+                gamma_f = SpectraData.gamma_f
+                thin = (SpectraData.thin)*np.pi/180
+                thout = (SpectraData.thout)*np.pi/180
+                phi = (SpectraData.phi)*np.pi/180
+                poltype = SpectraData.poltype
+                temperature = SpectraData.temperature
+                scatter_axis = SpectraData.scattering_axis
+                print(SpectraData.atomdata.ed["trans_op"].shape)
+                if 'rixs_1v1c_python_ed' in SpectraData.spectra.keys():
+                    reply = self.questionMsg("当前数据类中已经含有rixs_1v1c_python_ed spectra,是否进行覆盖")
+                    if reply == False:
+                        return False
+                try:
+                    spectra = rixs_1v1c_py(eval_i=SpectraData.atomdata.ed["eval_i"],
+                                           eval_n=SpectraData.atomdata.ed["eval_n"],
+                                           trans_op=SpectraData.atomdata.ed["trans_op"],
+                                           ominc=ominc, eloss=eloss, gamma_c=gamma_c, gamma_f=gamma_f,
+                                           thin=thin, thout=thout, phi=phi, pol_type=poltype,
+                                           gs_list=SpectraData.atomdata.ed["gs_list"],
+                                           temperature=temperature, scatter_axis=scatter_axis)
+                    self.spectra_data_present[self.combo_rixs.currentText()] = spectra
+                    return True
+                except Exception as e:
+                    print(e)
+                    self.informMsg("RIXS谱计算失败")
+                    return False
 
 # self.plot_button的调用函数(only)
     def _handleOnPlotSpectrum(self):
-        if self.spectra_name_present == None:
-            self.informMsg("无名氏")
-            return
-        which = self.combo.currentText()
-        if self.spectra_data_present["spectra"][which] == None or len(self.spectra_data_present["spectra"][which]) == 0:
-            self.informMsg("没有spectra data,请先进行计算")
+        if self.spectra_data_present.keys() == []:
+            self.informMsg("请先计算谱型")
             return
 
-        self._getPlotFrameByWhich(which, self.spectra_data_present)
-
-    def _getPlotFrameByWhich(self, which, spectraData_present:SpectraBasicData): #调用该函数之前已经确保存在数据
-        if "xas" in re.findall("xas", which):
-            if self.num_of_plotframe_xas == 0:
-                plotframe = PlotFrame_XAS()
-                plotframe ._getDataFromSecondFrame(which, spectraData_present)
-                self.plotframes_xas.append(plotframe)
-                self.num_of_plotframe_xas += 1
-                plotframe.mainWindow.show()
-                self.plotframe_xas_combo.addItem("1")
-            else:
-                reply = self.questionMsg("已存在plot frames,仍要新建？")
-                if reply is True:  # 新建一个
-                    plotframe = PlotFrame_XAS()
-                    plotframe._getDataFromSecondFrame(which, spectraData_present)
-                    self.plotframes_xas.append(plotframe)
-                    plotframe.mainWindow.show()
-                    self.num_of_plotframe_xas += 1
-                    self.plotframe_xas_combo.addItem(str(self.num_of_plotframe_xas))
-                else:
-                    curindex = self.plotframe_xas_combo.currentText()
-                    curindex = int(curindex)
-                    self.plotframes_xas[curindex-1]._getDataFromSecondFrame(which, spectraData_present)
-
-        if "rixs" in re.findall("rixs", which):
-            if spectraData_present.spectra['rixs_1v1c_python_ed'] != None:
+        if self.xas_check_box.isChecked() == True:
+            which = self.combo_xas.currentText()
+            print(which)
+            if which not in self.spectra_data_present.keys():
                 self.informMsg("没有spectra data,请先进行计算")
-                return
-            if self.num_of_plotframe_rixs == 0:
-                plotframe = PlotFrame_RIXS()
-                plotframe._getDataFromSecondFrame(which, spectraData_present)
-                self.plotframes_xas.append(plotframe)
-                self.num_of_plotframe_rixs += 1
-                plotframe.mainWindow.show()
-                self.plotframe_xas_combo.addItem("1")
             else:
-                reply = self.questionMsg("已存在plot frames,仍要新建？")
-                if reply is True:
-                    plotframe = PlotFrame_RIXS()
-                    plotframe._getDataFromSecondFrame(which, spectraData_present)
-                    self.plotframes_rixs.append(plotframe)
-                    self.num_of_plotframe_rixs += 1
-                    self.plotframe_xas_combo.addItem(str(self.num_of_plotframe_xas))
-                    plotframe.mainWindow.show()
-                else:
-                    curindex = self.plotframe_xas_combo.currentText()
-                    curindex = int(curindex)
-                    self.plotframes_rixs[curindex]._getDataFromSecondFrame(which, spectraData_present)
-        return
+                try:
+                    ax2 = plt.subplot(1, 1, 1)
+                    plt.grid()
+                    plt.plot(self.ominc_present, self.spectra_data_present[which], '-')
+                    plt.xlabel(r'Incident Energy (eV)')
+                    plt.ylabel(r'XAS Intensity (a.u.)')
+                    plt.title(r'(b) map of XAS')
+                    plt.subplots_adjust(left=0.1, right=0.9, bottom=0.1, top=0.9, wspace=0.2, hspace=0.3)
+                    plt.show()
+                except Exception as e:
+                    print(e)
+                    self.informMsg("作图失败")
+        else:
+            which = self.combo_rixs.currentText()
+            if which not in self.spectra_data_present.keys():
+                self.informMsg("没有spectra data,请先进行计算")
+            else:
+                try:
+                    print((self.spectra_data_present[which]).shape)
+                    plt.subplot(1, 1, 1)
+                    plt.imshow(np.sum(self.spectra_data_present[which], axis=2),
+                               extent=[min(self.eloss_present), max(self.eloss_present), min(self.ominc_present), max(self.ominc_present)],
+                               origin='lower', aspect='auto', cmap='rainbow', interpolation='gaussian')
+                    plt.xlabel(r'Energy loss (eV)')
+                    plt.ylabel(r'Incident Energy (eV)')
+                    plt.title(r'(c) map of RIXS')
+                    plt.subplots_adjust(left=0.1, right=0.9, bottom=0.1, top=0.9, wspace=0.2, hspace=0.3)
+                    plt.show()
+                except Exception as e:
+                    print(e)
+                    self.informMsg("作图失败")
+
+if __name__ == '__main__':
+    app=QApplication(sys.argv)
+    demo=SecondFrame()
+    demo.scrollForSecondFrame.show()
+    sys.exit(app.exec_())
 
                 
                 
